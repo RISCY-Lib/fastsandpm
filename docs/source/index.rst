@@ -1,0 +1,106 @@
+.. fastsandpm documentation master file
+
+fastsandpm Documentation
+===========================================
+
+An RTL Design and DV package manager for python tools. Manage your RTL and
+design verification library dependencies by cloning, updating, and
+version-controlling git repositories.
+
+Key Features
+------------
+
+- **Library Management**: Clone and update RTL/DV libraries from git repositories
+- **Version Pinning**: Pin libraries to specific tags, branches, or commits
+- **Version Ranges**: Specify flexible version constraints (e.g., ``>=1.0.0,<2.0.0``)
+- **TOML Configuration**: Organize libraries in configuration files with sub-headings
+- **Local Development**: Symlink local directories for development workflows
+- **Multi-Remote Support**: Automatically discover repositories across configured remotes
+
+Quick Start
+-----------
+
+Installation:
+
+.. code-block:: bash
+
+   # For UV Based projects
+   uv add fastsandpm
+
+   # For pip-based projects
+   pip install fastsandpm
+
+Basic Usage:
+
+.. code-block:: python
+
+   import pathlib
+   import fastsandpm
+
+   # Get the manifest of the current project
+   manifest = fastsandpm.get_manifest(pathlib.Path("some/repo/path"))
+
+   # Resolve the libraries
+   deps = fastsandpm.resolve_dependencies(manifest.dependencies, manifest.optional_dependencies["dev"])
+
+   # Update the libraries
+   fastsandpm.update_deps(libraries, pathlib.Path("some/library/.path"))
+
+This will bring in the library dependencies for a project into the specified directory.
+Additionally, a 'dependencies.f' file will be created which will point to the dependencies file list in the required order.
+
+For more examples, see the :doc:`usage_guide/index`.
+
+
+User Information
+----------------
+
+:doc:`manifest_reference/index`
+
+    How the manifest is to be structured.
+
+:doc:`usage_guide/index`
+
+    How to use ``fastsandpm`` in a different python project.
+
+Developer Information
+-----------------------
+
+:doc:`CONTRIBUTING`
+
+    Guide for contributing to ``fastsandpm``
+
+:doc:`CHANGELOG`
+
+    List of changes made to ``fastsandpm``
+
+
+.. Hidden TOCs
+
+.. toctree::
+    :maxdepth: 2
+    :caption: User Documentation
+    :hidden:
+
+    manifest_reference/index
+    usage_guide/index
+
+.. toctree::
+    :maxdepth: 2
+    :caption: Developer Documentation
+    :hidden:
+
+    CONTRIBUTING.md
+    CHANGELOG.md
+
+API
+----
+
+.. autosummary::
+   :toctree: api
+   :caption: API
+   :template: module-template.rst
+   :recursive:
+
+   fastsandpm
+

@@ -46,9 +46,6 @@ class Dependency(BaseModel):
 
     This is used as a base for other dependency types and for simple
     dependency references without version constraints.
-
-    Attributes:
-        name: The name of the dependency package.
     """
 
     name: str
@@ -68,11 +65,6 @@ class RegistryDependency(BaseModel):
 
         [dependencies]
         time = {version = "1.0.0", registry = "my-registry"}
-
-    Attributes:
-        name: The name of the dependency package.
-        version: The version specifier for the dependency.
-        registry: Optional name of an alternative registry to fetch from.
     """
 
     name: str
@@ -109,14 +101,6 @@ class GitDependency(BaseModel):
         dep4 = {git = "https://github.com/username/repo.git", branch = "develop"}
         dep5 = {git = "https://github.com/username/repo.git", tag = "v1.0.0"}
         dep6 = {git = "https://github.com/username/repo.git", commit = "deadbeef"}
-
-    Attributes:
-        name: The name of the dependency package.
-        git: The git URL or project ID of the dependency.
-        version: Optional version specifier (uses git tags).
-        branch: Optional branch name to use.
-        tag: Optional tag name to use.
-        commit: Optional commit hash to use.
     """
 
     name: str
@@ -186,10 +170,6 @@ class PathDependency(BaseModel):
     Example TOML format:
         [dependencies]
         time = {path = "./some/path/to/dep1"}
-
-    Attributes:
-        name: The name of the dependency package.
-        path: The local path to the dependency.
     """
 
     name: str
