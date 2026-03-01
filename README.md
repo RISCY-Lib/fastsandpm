@@ -1,2 +1,2 @@
-# fastsandpm
-A package manager tailored at RTL Design and DV
+# FastSandPM
+A package management and dependency resolution tool for HDL Design and DV projects
