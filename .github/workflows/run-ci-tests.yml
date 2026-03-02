@@ -23,4 +23,4 @@ jobs:
           version: "0.10.7"
 
       - name: Run UV Tox
-        run: uv tox p
+        run: uv run tox p
