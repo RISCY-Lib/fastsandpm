@@ -35,26 +35,10 @@ from pydantic import ValidationError
 
 from fastsandpm.dependencies import (
     Dependencies,
-    Dependency,
     GitDependency,
     PathDependency,
     RegistryDependency,
 )
-
-
-class TestDependency:
-    """Tests for the basic Dependency class."""
-
-    def test_dependency_with_name(self) -> None:
-        """Test creating a dependency with just a name."""
-        dep = Dependency(name="my-package")
-        assert dep.name == "my-package"
-
-    def test_dependency_name_required(self) -> None:
-        """Test that name is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            Dependency()  # type: ignore[call-arg]
-        assert "name" in str(exc_info.value)
 
 
 class TestRegistryDependency:

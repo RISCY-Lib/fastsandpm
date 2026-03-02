@@ -42,9 +42,6 @@ from pydantic import (
 
 from fastsandpm.dependencies import (
     Dependencies,
-    GitDependency,
-    PathDependency,
-    RegistryDependency,
 )
 from fastsandpm.versioning import LibraryVersion
 
@@ -57,7 +54,25 @@ _Version = Annotated[
 
 
 class Package(BaseModel):
-    """The package details from a package manifest."""
+    """The package details from a package manifest.
+
+    Example TOML:
+
+    .. code-block:: TOML
+
+        [package]
+        name = "package_name"
+        version = "1.2.3-a4"
+        description = "A sample package"
+
+        authors = "Jane Doe <jdoe@doelife.com>"
+        readme = "README.txt"
+
+    .. seealso::
+
+        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
+        for details on the parent BaseModel class and it's methods.
+    """
 
     name: str
     """The name of the package."""
@@ -73,14 +88,25 @@ class Package(BaseModel):
 
 
 class Manifest(BaseModel):
-    """The package manifest."""
+    """The package manifest.
+
+    .. seealso::
+
+        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
+        for details on the parent BaseModel class and it's methods.
+
+    .. seealso::
+
+        See :py:class:`Package` and :py:class:`Dependencies` for details on the child sections of
+        the manifest.
+    """
 
     package: Package
     """The package metadata found in the 'package' section of the manifest."""
 
     dependencies: Dependencies = Field(default_factory=lambda: Dependencies(list()))
     """The package dependencies found in the 'dependencies' section of the manifest."""
-    optional_dependencies: dict[str, list[RegistryDependency | GitDependency | PathDependency]] = (
+    optional_dependencies: dict[str, Dependencies] = (
         Field(default_factory=dict)
     )
     """The package optional dependencies found in the 'optional_dependencies'

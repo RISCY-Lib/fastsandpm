@@ -36,16 +36,17 @@ Classes:
 from __future__ import annotations
 
 import pathlib
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Protocol, Self
 
 from pydantic import BaseModel, Field, RootModel, model_validator
 
 
-class Dependency(BaseModel):
+class Dependency(Protocol):
     """A basic dependency which only contains the package name.
 
     This is used as a base for other dependency types and for simple
     dependency references without version constraints.
+
     """
 
     name: str
@@ -60,11 +61,19 @@ class RegistryDependency(BaseModel):
     fetching from alternative registries.
 
     Example TOML formats:
+
+    .. code-block:: TOML
+
         [dependencies]
         time = "1.0.0"
 
         [dependencies]
         time = {version = "1.0.0", registry = "my-registry"}
+
+    .. seealso::
+
+        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
+        for details on the parent BaseModel class and it's methods.
     """
 
     name: str
@@ -94,6 +103,9 @@ class GitDependency(BaseModel):
     controlled using version specifiers, branches, tags, or specific commits.
 
     Example TOML formats:
+
+    .. code-block:: TOML
+
         [dependencies]
         time = {git = "https://github.com/username/repo.git"}
         dep2 = {git = "SOME_ORG"}
@@ -101,6 +113,11 @@ class GitDependency(BaseModel):
         dep4 = {git = "https://github.com/username/repo.git", branch = "develop"}
         dep5 = {git = "https://github.com/username/repo.git", tag = "v1.0.0"}
         dep6 = {git = "https://github.com/username/repo.git", commit = "deadbeef"}
+
+    .. seealso::
+
+        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
+        for details on the parent BaseModel class and it's methods.
     """
 
     name: str
@@ -168,8 +185,16 @@ class PathDependency(BaseModel):
     monorepo setups or local development.
 
     Example TOML format:
+
+    .. code-block:: TOML
+
         [dependencies]
         time = {path = "./some/path/to/dep1"}
+
+    .. seealso::
+
+        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
+        for details on the parent BaseModel class and it's methods.
     """
 
     name: str
@@ -183,9 +208,6 @@ class PathDependency(BaseModel):
     """
 
 
-# Type alias for all dependency types
-DependencyType = Dependency | RegistryDependency | GitDependency | PathDependency
-
 # Annotated type for discriminated union parsing
 AnyDependency = Annotated[
     RegistryDependency | GitDependency | PathDependency,
@@ -193,7 +215,7 @@ AnyDependency = Annotated[
 ]
 
 
-class Dependencies(RootModel[list[RegistryDependency | GitDependency | PathDependency]]):
+class Dependencies(RootModel[list[GitDependency | PathDependency | RegistryDependency]]):
     """A collection of dependencies which the package relies on.
 
     This class handles parsing dependencies from various TOML formats into
@@ -206,6 +228,11 @@ class Dependencies(RootModel[list[RegistryDependency | GitDependency | PathDepen
 
     The model validator automatically converts dictionary-style TOML
     dependencies into the correct dependency type based on the keys present.
+
+    .. seealso::
+
+        See `Pydantic RootModel <https://docs.pydantic.dev/latest/api/root_model/>`__
+        for details on the base class and it's methods.
     """
 
     @model_validator(mode="before")
@@ -285,7 +312,7 @@ class Dependencies(RootModel[list[RegistryDependency | GitDependency | PathDepen
         """
         return len(self.root)
 
-    def __getitem__(self, index: int) -> RegistryDependency | GitDependency | PathDependency:
+    def __getitem__(self, index: int) -> Dependency:
         """Get a dependency by index.
 
         Args:

@@ -144,7 +144,16 @@ class LibraryVersion:
             pre: Pre-release number (e.g., 1 for rc1).
         """
 
-    def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+    def __init__(
+        self,
+        version: str | None = None,
+        *,
+        major: int | None = None,
+        minor: int | None = None,
+        patch: int | None = None,
+        pre_stage: PreReleaseStage | str | None = None,
+        pre: int | None = None
+    ):  # type: ignore[no-untyped-def]
         """Initialize a LibraryVersion instance.
 
         Can be initialized either from a version string or from individual
@@ -153,20 +162,40 @@ class LibraryVersion:
         Raises:
             ValueError: If the version string format is invalid.
         """
-        if len(args) == 1:
-            kwargs["version"] = args[0]
+        if version is not None:
+            if major is not None or minor is not None or patch is not None or \
+                    pre_stage is not None or pre is not None:
+                raise ValueError(
+                    "Cannot specify version string along with other version components"
+                )
 
-        if "version" in kwargs:
             self.major, self.minor, self.patch, self.pre_stage, self.pre = LibraryVersion.parse(
-                kwargs["version"]
+                version
             )
             return
 
-        self.major: int = kwargs["major"]
-        self.minor: int = kwargs["minor"]
-        self.patch: int = kwargs["patch"]
-        self.pre_stage: PreReleaseStage | None = kwargs.get("pre_stage", None)
-        self.pre: int | None = kwargs.get("pre", None)
+        if major is None or minor is None or patch is None:
+            raise ValueError(
+                "'major', 'minor', and 'patch' must be specified when using version components"
+            )
+
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+
+        if pre_stage is None:
+            if pre is not None:
+                raise ValueError("Cannot specify 'pre' without 'pre_stage'")
+            self.pre_stage = None
+            self.pre = None
+            return
+
+        if isinstance(pre_stage, str):
+            self.pre_stage = PreReleaseStage.from_string(pre_stage)
+        else:
+            self.pre_stage = pre_stage
+
+        self.pre = pre
 
     def __eq__(self, other: object) -> bool:
         """Check equality with another LibraryVersion.
