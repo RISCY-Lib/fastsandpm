@@ -151,3 +151,8 @@ An alternative but equally valid way to write this TOML would be:
 
 The ``[registeries]`` section
 -----------------------------
+
+Additional registeries can be specified in the ``[registries]`` section.
+A regsitry type exists for each :ref:`dependency specifier <specifying_dependencies>` type.
+
+

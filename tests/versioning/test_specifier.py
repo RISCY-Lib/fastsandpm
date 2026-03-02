@@ -200,15 +200,14 @@ class TestCaretVersionSpecifierZeroMajor:
 
 class TestCaretVersionSpecifierPreRelease:
     """Tests for CaretVersionSpecifier with pre-release versions.
-
-    Pre-release versions should be excluded from caret requirements.
     """
 
     def test_caret_specifier_excludes_prerelease(self) -> None:
         """Test CaretVersionSpecifier excludes pre-release versions."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is False
-        assert specifier.meets(LibraryVersion("1.2.4-alpha")) is False
+        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.meets(LibraryVersion("1.2.4-alpha")) is True
+        assert specifier.meets(LibraryVersion("1.2.3a0")) is False
 
     def test_caret_specifier_excludes_prerelease_of_next_major(self) -> None:
         """Test CaretVersionSpecifier excludes pre-release of next major."""
@@ -314,49 +313,48 @@ class TestComparisonVersionSpecifierLessThan:
 
 class TestComparisonVersionSpecifierPreRelease:
     """Tests for ComparisonVersionSpecifier with pre-release versions.
-
-    Pre-release versions should be excluded from comparison requirements.
     """
 
     def test_comparison_gte_excludes_prerelease(self) -> None:
         """Test >= excludes pre-release versions."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is False
+        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.meets(LibraryVersion("1.2.3-beta.1")) is False
 
     def test_comparison_lt_excludes_prerelease(self) -> None:
         """Test < excludes pre-release versions."""
         specifier = ComparisonVersionSpecifier("<", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("1.9.0-rc1")) is False
+        assert specifier.meets(LibraryVersion("1.9.0-rc1")) is True
 
 
 class TestRangeVersionSpecifierBasic:
     """Tests for RangeVersionSpecifier combining multiple comparison constraints."""
 
     def test_range_specifier_within_range(self) -> None:
-        """Test RangeVersionSpecifier matches version within range."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        """Test RangeVersionSpecifier matches versions within the range."""
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("1.0.0")) is True
         assert specifier.meets(LibraryVersion("1.5.0")) is True
         assert specifier.meets(LibraryVersion("1.9.9")) is True
 
     def test_range_specifier_at_lower_bound(self) -> None:
         """Test RangeVersionSpecifier matches lower bound (inclusive)."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("1.0.0")) is True
 
     def test_range_specifier_at_upper_bound(self) -> None:
         """Test RangeVersionSpecifier excludes upper bound (exclusive)."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("2.0.0")) is False
 
     def test_range_specifier_below_range(self) -> None:
         """Test RangeVersionSpecifier rejects version below range."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("0.9.9")) is False
 
     def test_range_specifier_above_range(self) -> None:
         """Test RangeVersionSpecifier rejects version above range."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("2.0.1")) is False
 
 
@@ -365,31 +363,31 @@ class TestRangeVersionSpecifierExclusiveBounds:
 
     def test_range_specifier_exclusive_lower_bound(self) -> None:
         """Test RangeVersionSpecifier with exclusive lower bound."""
-        specifier = RangeVersionSpecifier(">1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">1.0.0,<2.0.0")
         assert specifier.meets(LibraryVersion("1.0.0")) is False
         assert specifier.meets(LibraryVersion("1.0.1")) is True
 
     def test_range_specifier_inclusive_upper_bound(self) -> None:
         """Test RangeVersionSpecifier with inclusive upper bound."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<=2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<=2.0.0")
         assert specifier.meets(LibraryVersion("2.0.0")) is True
 
 
 class TestRangeVersionSpecifierPreRelease:
     """Tests for RangeVersionSpecifier with pre-release versions.
-
-    Pre-release versions should be excluded from version ranges.
     """
 
     def test_range_specifier_excludes_prerelease(self) -> None:
-        """Test RangeVersionSpecifier excludes pre-release versions in range."""
-        specifier = RangeVersionSpecifier(">=1.2.3,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is False
-        assert specifier.meets(LibraryVersion("1.5.0-alpha")) is False
+        """Test RangeVersionSpecifier excludes pre-release versions from range."""
+        specifier = RangeVersionSpecifier.from_string(">=1.2.3,<2.0.0")
+        assert specifier.meets(LibraryVersion("1.3.0a1")) is True
+        assert specifier.meets(LibraryVersion("1.3.0")) is True
 
     def test_range_specifier_excludes_prerelease_at_lower_bound(self) -> None:
         """Test RangeVersionSpecifier excludes pre-release at lower bound."""
-        specifier = RangeVersionSpecifier(">=1.2.3,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.2.3,<2.0.0")
+        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.meets(LibraryVersion("1.5.0-alpha")) is True
         # 1.2.3-beta.1 is technically < 1.2.3 release, so excluded
         assert specifier.meets(LibraryVersion("1.2.3-beta.1")) is False
 
@@ -622,7 +620,7 @@ class TestVersionSpecifierInheritance:
 
     def test_range_specifier_is_version_specifier(self) -> None:
         """Test RangeVersionSpecifier inherits from VersionSpecifier."""
-        specifier = RangeVersionSpecifier(">=1.0.0,<2.0.0")
+        specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
         assert isinstance(specifier, VersionSpecifier)
 
 
@@ -664,7 +662,7 @@ class TestIntegrationScenarios:
         """Test scenario: >=1.2.3,<2.0.0 excludes 1.3.0-beta.1."""
         specifier = version_specifier_from_str(">=1.2.3,<2.0.0")
         assert specifier.meets(LibraryVersion("1.3.0")) is True
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is False
+        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
 
     def test_direct_prerelease_included_scenario(self) -> None:
         """Test scenario: 1.0.0-beta.1 directly matches pre-release version."""

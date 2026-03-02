@@ -6,23 +6,23 @@ Specifying Dependencies
 Dependency specifiers control how a dependency is found and brought in.
 There are currently the following supported specifiers:
 
-- :ref:`registry <registry_specifier>`
+- :ref:`package index <package_index_specifier>`
 - :ref:`git <git_specifier>`
 - :ref:`path <path_specifier>`
 
-.. _registry_specifier:
+.. _package_index_specifier:
 
-Regsitery Specifier
--------------------
+Package Index Specifier
+-----------------------
 
 .. warning::
 
-   The ``registry`` specifier is not yet supported as there is not an existing registery to use.
+   The ``package index`` specifier is not yet supported as there is not an existing index to use.
 
 
-The registery specifier is the easiest specifier.
+The ``package index`` specifier is the easiest specifier.
 Only a name and version string are required.
-Using these two pieces of information the dependency will be fetched from the ``JFrog Artifactory``.
+Using these two pieces of information the dependency will be fetched from the ``package index``.
 For example you can specify a dependency named ``time`` and version ``1.0.0`` as follows:
 
 .. code-block:: TOML
@@ -37,7 +37,7 @@ These specifiers can be used to set a range of valid versions used for resolving
 Dependencies from Other Registries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-It is also possible to point to a different registery using the ``registry`` key in the dependency.
+It is also possible to point to a different index using the ``index`` key in the dependency.
 For example you can specify a dependency named ``time`` and version ``1.0.0`` as follows:
 
 .. code-block:: TOML

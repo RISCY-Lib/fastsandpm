@@ -29,7 +29,13 @@ import pathlib
 import pytest
 
 import fastsandpm
-from fastsandpm.dependencies import GitDependency, PathDependency, RegistryDependency
+from fastsandpm.dependencies import GitRequirement, PackageIndexRequirement, PathRequirement
+from fastsandpm.dependencies.requirements import (
+    BranchGitRequirement,
+    CommitGitRequirement,
+    TaggedGitRequirement,
+    VersionedGitRequirement,
+)
 from fastsandpm.manifest import (
     MANIFEST_FILENAME,
     Manifest,
@@ -37,6 +43,8 @@ from fastsandpm.manifest import (
     ManifestParseError,
     get_manifest,
 )
+from fastsandpm.versioning.library_version import LibraryVersion
+from fastsandpm.versioning.specifier import CaretVersionSpecifier, DirectVersionSpecifier
 
 
 class TestGetManifestBasic:
@@ -119,8 +127,8 @@ dep3 = ">=1.0.0,<2.0.0"
 
         assert len(manifest.dependencies) == 3
         dep1 = manifest.dependencies.get_by_name("dep1")
-        assert isinstance(dep1, RegistryDependency)
-        assert dep1.version == "1.0.0"
+        assert isinstance(dep1, PackageIndexRequirement)
+        assert dep1.version == DirectVersionSpecifier(LibraryVersion("1.0.0"))
 
     def test_get_manifest_with_git_dependencies(self, tmp_path: pathlib.Path) -> None:
         """Test loading manifest with git dependencies."""
@@ -144,24 +152,24 @@ git_dep5 = {git = "ORG_NAME", version = "1.0.0"}
         assert len(manifest.dependencies) == 5
 
         dep1 = manifest.dependencies.get_by_name("git_dep1")
-        assert isinstance(dep1, GitDependency)
+        assert isinstance(dep1, GitRequirement)
         assert dep1.git == "https://github.com/org/repo.git"
 
         dep2 = manifest.dependencies.get_by_name("git_dep2")
-        assert isinstance(dep2, GitDependency)
+        assert isinstance(dep2, BranchGitRequirement)
         assert dep2.branch == "develop"
 
         dep3 = manifest.dependencies.get_by_name("git_dep3")
-        assert isinstance(dep3, GitDependency)
+        assert isinstance(dep3, TaggedGitRequirement)
         assert dep3.tag == "v1.0.0"
 
         dep4 = manifest.dependencies.get_by_name("git_dep4")
-        assert isinstance(dep4, GitDependency)
+        assert isinstance(dep4, CommitGitRequirement)
         assert dep4.commit == "abc123"
 
         dep5 = manifest.dependencies.get_by_name("git_dep5")
-        assert isinstance(dep5, GitDependency)
-        assert dep5.version == "1.0.0"
+        assert isinstance(dep5, VersionedGitRequirement)
+        assert dep5.version == DirectVersionSpecifier(LibraryVersion("1.0.0"))
 
     def test_get_manifest_with_path_dependencies(self, tmp_path: pathlib.Path) -> None:
         """Test loading manifest with path dependencies."""
@@ -182,11 +190,11 @@ parent_dep = {path = "../sibling_project"}
         assert len(manifest.dependencies) == 2
 
         local = manifest.dependencies.get_by_name("local_dep")
-        assert isinstance(local, PathDependency)
+        assert isinstance(local, PathRequirement)
         assert local.path == pathlib.Path("./local_utils")
 
         parent = manifest.dependencies.get_by_name("parent_dep")
-        assert isinstance(parent, PathDependency)
+        assert isinstance(parent, PathRequirement)
         assert parent.path == pathlib.Path("../sibling_project")
 
     def test_get_manifest_with_mixed_dependencies(self, tmp_path: pathlib.Path) -> None:
@@ -208,9 +216,11 @@ local_utils = {path = "./local_utils"}
         manifest = get_manifest(tmp_path)
 
         assert len(manifest.dependencies) == 4
-        assert len(manifest.dependencies.registry_dependencies()) == 2
-        assert len(manifest.dependencies.git_dependencies()) == 1
-        assert len(manifest.dependencies.path_dependencies()) == 1
+        assert len([
+            d for d in manifest.dependencies if isinstance(d, PackageIndexRequirement)
+        ]) == 2
+        assert len([d for d in manifest.dependencies if isinstance(d, GitRequirement)]) == 1
+        assert len([d for d in manifest.dependencies if isinstance(d, PathRequirement)]) == 1
 
 
 class TestGetManifestWithOptionalDependencies:
@@ -393,16 +403,16 @@ local_utils = {path = "./local_utils"}
         assert len(manifest.dependencies) == 4
 
         uvm_utils = manifest.dependencies.get_by_name("uvm_utils")
-        assert isinstance(uvm_utils, RegistryDependency)
-        assert uvm_utils.version == "^1.0.0"
+        assert isinstance(uvm_utils, PackageIndexRequirement)
+        assert uvm_utils.version == CaretVersionSpecifier(LibraryVersion("1.0.0"))
 
         amba = manifest.dependencies.get_by_name("amba_interfaces")
-        assert isinstance(amba, GitDependency)
+        assert isinstance(amba, BranchGitRequirement)
         assert amba.git == "PADC_AMBA_IP"
         assert amba.branch == "main"
 
         local = manifest.dependencies.get_by_name("local_utils")
-        assert isinstance(local, PathDependency)
+        assert isinstance(local, PathRequirement)
 
     def test_top_level_import_works(self, tmp_path: pathlib.Path) -> None:
         """Test that get_manifest is accessible from top-level fastsandpm import."""

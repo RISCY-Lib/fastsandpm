@@ -26,23 +26,24 @@ This module provides:
 
 from __future__ import annotations
 
+import os
 import pathlib
 import tomllib
-from typing import Annotated, Any
+from typing import Annotated, Any, Self, SupportsIndex
 
 from pydantic import (
     BaseModel,
     Field,
     PlainSerializer,
     PlainValidator,
+    RootModel,
     ValidationError,
     WithJsonSchema,
     model_validator,
 )
 
-from fastsandpm.dependencies import (
-    Dependencies,
-)
+from fastsandpm.dependencies.requirements import ConcreteRequirement
+from fastsandpm.registries import Registries
 from fastsandpm.versioning import LibraryVersion
 
 _Version = Annotated[
@@ -51,6 +52,34 @@ _Version = Annotated[
     PlainSerializer(lambda v: str(v), return_type=str),
     WithJsonSchema({"type": "string"}),
 ]
+
+
+class ManifestNotFoundError(FileNotFoundError):
+    """Raised when a manifest file cannot be found at the specified path."""
+
+    def __init__(self, path: pathlib.Path) -> None:
+        """Initialize the error with the path that was searched.
+
+        Args:
+            path: The path where the manifest was expected.
+        """
+        self.path = path
+        super().__init__(f"Manifest file not found: {path / MANIFEST_FILENAME}")
+
+
+class ManifestParseError(ValueError):
+    """Raised when a manifest file cannot be parsed."""
+
+    def __init__(self, path: pathlib.Path, reason: str) -> None:
+        """Initialize the error with the path and reason for failure.
+
+        Args:
+            path: The path to the manifest file.
+            reason: Description of why parsing failed.
+        """
+        self.path = path
+        self.reason = reason
+        super().__init__(f"Failed to parse manifest at {path}: {reason}")
 
 
 class Package(BaseModel):
@@ -87,6 +116,148 @@ class Package(BaseModel):
     """The readme of the package."""
 
 
+class Dependencies(RootModel[list[ConcreteRequirement]]):
+    """A collection of dependencies which the package relies on.
+
+    This class handles parsing dependencies from various TOML formats into
+    the appropriate dependency type objects. It supports:
+
+    - Simple string format: `name = "version"`
+    - Registry format: `name = {version = "1.0.0"}`
+    - Git format: `name = {git = "url", ...}`
+    - Path format: `name = {path = "./local/path"}`
+
+    The model validator automatically converts dictionary-style TOML
+    dependencies into the correct dependency type based on the keys present.
+
+    .. seealso::
+
+        See `Pydantic RootModel <https://docs.pydantic.dev/latest/api/root_model/>`__
+        for details on the base class and it's methods.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_dependencies(cls, data: Any) -> Any:
+        """Parse dependency data from various formats.
+
+        Handles conversion from TOML-style dependency specifications to
+        the internal dependency model format.
+
+        Args:
+            data: Raw dependency data, either as a dict (from TOML) or list.
+
+        Returns:
+            A list of dependency dictionaries ready for model instantiation.
+
+        Examples:
+            Input formats supported:
+            - {"name": "foo", "version": "1.0.0"} -> [{"name": "foo", ...}]
+            - {"foo": "1.0.0"} -> [{"name": "foo", "version": "1.0.0"}]
+            - {"foo": {"git": "url"}} -> [{"name": "foo", "git": "url"}]
+            - {"foo": {"path": "./path"}} -> [{"name": "foo", "path": "./path"}]
+        """
+        if isinstance(data, dict):
+            # Handle single dependency passed as dict with 'name' key
+            if "name" in data:
+                return [data]
+
+            # Convert dict-style dependencies to list
+            new_data = []
+            for name, spec in data.items():
+                if isinstance(spec, dict):
+                    # Dict specification: {git: ..., version: ...} or {path: ...}
+                    new_data.append({"name": name, **spec})
+                elif isinstance(spec, str):
+                    # Simple string specification: "version" -> RegistryDependency
+                    new_data.append({"name": name, "version": spec})
+                else:
+                    # Pass through as-is (will fail validation if invalid)
+                    new_data.append({"name": name, "version": spec})
+            return new_data
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_unique_names(self) -> Self:
+        """Validate that all dependency names are unique.
+
+        Raises:
+            ValueError: If duplicate dependency names are found.
+
+        Returns:
+            Self: The validated model instance.
+        """
+        names = [dep.name for dep in self.root]
+        duplicates = [name for name in names if names.count(name) > 1]
+
+        if duplicates:
+            unique_duplicates = list(set(duplicates))
+            raise ValueError(f"Duplicate dependency names found: {unique_duplicates}")
+
+        return self
+
+    def __iter__(self):
+        """Iterate over the dependencies.
+
+        Returns:
+            Iterator over the dependency list.
+        """
+        return iter(self.root)
+
+    def __len__(self) -> int:
+        """Return the number of dependencies.
+
+        Returns:
+            The count of dependencies.
+        """
+        return len(self.root)
+
+    def __getitem__(self, index: int) -> ConcreteRequirement:
+        """Get a dependency by index.
+
+        Args:
+            index: The index of the dependency to retrieve.
+
+        Returns:
+            The dependency at the specified index.
+        """
+        return self.root[index]
+
+    def append(self, object: ConcreteRequirement) -> None:
+        """Append a dependency to the collection.
+
+        Args:
+            object: The dependency to append to the end of the collection.
+        """
+        self.root.append(object)
+
+    def insert(self, index: SupportsIndex, object: ConcreteRequirement) -> None:
+        """Insert a dependency at a specific position.
+
+        Args:
+            index: The position where the dependency should be inserted.
+            object: The dependency to insert into the collection.
+        """
+        self.root.insert(index, object)
+
+    def get_by_name(
+        self, name: str
+    ) -> ConcreteRequirement | None:
+        """Get a dependency by its name.
+
+        Args:
+            name: The name of the dependency to find.
+
+        Returns:
+            The dependency with the specified name, or None if not found.
+        """
+        for dep in self.root:
+            if dep.name == name:
+                return dep
+        return None
+
+
 class Manifest(BaseModel):
     """The package manifest.
 
@@ -112,6 +283,9 @@ class Manifest(BaseModel):
     """The package optional dependencies found in the 'optional_dependencies'
     section of the manifest.
     """
+
+    registries: Registries = Field(default_factory=lambda: Registries(list()))
+    """Registries found in the 'registries' section of the manifest."""
 
     @model_validator(mode="before")
     @classmethod
@@ -168,35 +342,7 @@ class Manifest(BaseModel):
 MANIFEST_FILENAME = "proj.toml"
 
 
-class ManifestNotFoundError(FileNotFoundError):
-    """Raised when a manifest file cannot be found at the specified path."""
-
-    def __init__(self, path: pathlib.Path) -> None:
-        """Initialize the error with the path that was searched.
-
-        Args:
-            path: The path where the manifest was expected.
-        """
-        self.path = path
-        super().__init__(f"Manifest file not found: {path / MANIFEST_FILENAME}")
-
-
-class ManifestParseError(ValueError):
-    """Raised when a manifest file cannot be parsed."""
-
-    def __init__(self, path: pathlib.Path, reason: str) -> None:
-        """Initialize the error with the path and reason for failure.
-
-        Args:
-            path: The path to the manifest file.
-            reason: Description of why parsing failed.
-        """
-        self.path = path
-        self.reason = reason
-        super().__init__(f"Failed to parse manifest at {path}: {reason}")
-
-
-def get_manifest(path: pathlib.Path) -> Manifest:
+def get_manifest(path: os.PathLike) -> Manifest:
     """Load and parse a manifest from a repository path.
 
     Looks for a `proj.toml` file in the specified directory, parses it,
@@ -220,7 +366,6 @@ def get_manifest(path: pathlib.Path) -> Manifest:
         >>> print(manifest.package.name)
         'my-package'
     """
-    # Ensure path is a Path object
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
 

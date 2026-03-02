@@ -38,10 +38,9 @@ Functions:
 
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, Self
 
 from .library_version import LibraryVersion
 
@@ -83,9 +82,30 @@ class DirectVersionSpecifier(VersionSpecifier):
         """
         return self.version == version
 
+    def __eq__(self, value: object) -> bool:
+        """Check for equality between this DirectVersionSpecifier and the object"""
+        if not isinstance(value, DirectVersionSpecifier):
+            return False
+        return self.version == value.version
+
+    def __repr__(self) -> str:
+        return str(self)
+
     def __str__(self) -> str:
         """Return string representation of the specifier."""
         return f"DirectVersionSpecifier({self.version!s})"
+
+    @classmethod
+    def from_string(cls, value: str) -> Self:
+        """Create a DirectVersionSpecifier from string.
+
+        Returns:
+            The created specifier.
+
+        Raises:
+            ValueError: If the value can't be converted to a valid DirectVersionSpecifier
+        """
+        return cls(LibraryVersion(value.strip()))
 
 
 class CaretVersionSpecifier(VersionSpecifier):
@@ -94,8 +114,6 @@ class CaretVersionSpecifier(VersionSpecifier):
     Caret requirements allow semver-compatible updates:
     - ^1.2.3 allows >=1.2.3, <2.0.0
     - ^0.2.3 allows >=0.2.3, <0.3.0 (0.x.x versions treat minor as breaking)
-
-    Pre-release versions are excluded from caret requirements.
     """
 
     def __init__(self, version: LibraryVersion) -> None:
@@ -115,30 +133,49 @@ class CaretVersionSpecifier(VersionSpecifier):
         Returns:
             True if the version is semver-compatible, False otherwise.
         """
-        # Exclude pre-release versions
-        if version.pre_stage is not None:
+        # Exclude pre-release versions and versions less than this version
+        if version < self.version:
             return False
 
-        # Version must be >= base version
-        if version < self.version:
+        # Must have same major
+        if version.major != self.version.major:
             return False
 
         # For 0.x.x versions, minor bump is considered breaking
         if self.version.major == 0:
             # Must have same major and minor
-            if version.major != self.version.major:
-                return False
             if version.minor != self.version.minor:
                 return False
-            return True
 
-        # For 1.x.x+, major bump is considered breaking
-        # Must have same major version
-        return bool(version.major == self.version.major)
+        return True
+
+    def __eq__(self, value: object, /) -> bool:
+        """Check for equality between this DirectVersionSpecifier and the object"""
+        if not isinstance(value, CaretVersionSpecifier):
+            return False
+        return self.version == value.version
+
+    def __repr__(self) -> str:
+        return str(self)
 
     def __str__(self) -> str:
         """Return string representation of the specifier."""
         return f"CaretVersionSpecifier(^{self.version!s})"
+
+    @classmethod
+    def from_string(cls, value: str) -> Self:
+        """Create a CaretVersionSpecifier from string.
+
+        Returns:
+            The created specifier.
+
+        Raises:
+            ValueError: If the value can't be converted to a valid DirectVersionSpecifier
+        """
+        if not value[0] == "^":
+            raise ValueError(f"Cannot create CaretVersionSpecifier from string: {value}")
+
+        return cls(LibraryVersion(value[1:].strip()))
 
 
 ComparisonOperator = Literal[">=", "<=", ">", "<"]
@@ -146,8 +183,6 @@ ComparisonOperator = Literal[">=", "<=", ">", "<"]
 
 class ComparisonVersionSpecifier(VersionSpecifier):
     """Version specification for comparison requirements (>=, <=, >, <).
-
-    Pre-release versions are excluded from comparison requirements.
     """
 
     VALID_OPERATORS: set[str] = {">=", "<=", ">", "<"}
@@ -176,10 +211,6 @@ class ComparisonVersionSpecifier(VersionSpecifier):
         Returns:
             True if the version satisfies the comparison, False otherwise.
         """
-        # Exclude pre-release versions
-        if version.pre_stage is not None:
-            return False
-
         if self.operator == ">=":
             return version >= self.version
         elif self.operator == "<=":
@@ -189,9 +220,30 @@ class ComparisonVersionSpecifier(VersionSpecifier):
         else:  # self.operator == "<"
             return version < self.version
 
+    def __eq__(self, value: object, /) -> bool:
+        """Check for equality between this ComparisonVersionSpecifier and the value"""
+        if not isinstance(value, ComparisonVersionSpecifier):
+            return False
+
+        return self.operator == value.operator and self.version == value.version
+
+    def __repr__(self) -> str:
+        return str(self)
+
     def __str__(self) -> str:
         """Return string representation of the specifier."""
         return f"ComparisonVersionSpecifier({self.operator}{self.version!s})"
+
+    @classmethod
+    def from_string(cls, value: str) -> Self:
+        """Convert the string to a comparison version specifier"""
+        # Check longer operators first to avoid matching '<' when '<=' is intended
+        for op in sorted(cls.VALID_OPERATORS, key=len, reverse=True):
+            if value.startswith(op):
+                version_str = value[len(op):].strip()
+                return cls(op, LibraryVersion(version_str))  # type: ignore[arg-type]
+
+        raise ValueError(f"Invalid comparison version specifier: {value}")
 
 
 class RangeVersionSpecifier(VersionSpecifier):
@@ -199,11 +251,9 @@ class RangeVersionSpecifier(VersionSpecifier):
 
     Combines multiple comparison constraints. A version must satisfy all
     constraints to meet the specification.
-
-    Pre-release versions are excluded from range requirements.
     """
 
-    def __init__(self, range_str: str) -> None:
+    def __init__(self, c1: ComparisonVersionSpecifier, c2: ComparisonVersionSpecifier) -> None:
         """Initialize a RangeVersionSpecifier from a range string.
 
         Args:
@@ -213,11 +263,10 @@ class RangeVersionSpecifier(VersionSpecifier):
         Raises:
             ValueError: If the range string is invalid.
         """
-        self.range_str = range_str
-        self.constraints: list[ComparisonVersionSpecifier] = []
-        self._parse_range(range_str)
+        self.constraints: tuple[ComparisonVersionSpecifier, ComparisonVersionSpecifier] = (c1, c2)
 
-    def _parse_range(self, range_str: str) -> None:
+    @classmethod
+    def from_string(cls, range_str: str) -> Self:
         """Parse a range string into individual comparison constraints.
 
         Args:
@@ -229,24 +278,16 @@ class RangeVersionSpecifier(VersionSpecifier):
         # Split by comma and strip whitespace
         parts = [p.strip() for p in range_str.split(",")]
 
-        for part in parts:
-            # Match comparison operator and version
-            match = re.match(r"^\s*(>=|<=|>|<)\s*(.+)\s*$", part)
-            if not match:
-                raise ValueError(f"Invalid range constraint: {part}")
-
-            operator = match.group(1)
-            version_str = match.group(2).strip()
-
-            try:
-                version = LibraryVersion(version_str)
-            except ValueError as e:
-                raise ValueError(f"Invalid version in range constraint: {version_str}") from e
-
-            # Type is validated by regex, safe to cast
-            self.constraints.append(
-                ComparisonVersionSpecifier(operator, version)  # type: ignore[arg-type]
+        if len(parts) != 2:
+            raise ValueError(
+                "RangeVersionSpecifier requires 2 ComparisonVersionSpecifiers. "
+                + f"'{range_str}' contains {len(parts)}"
             )
+
+        return cls(
+            ComparisonVersionSpecifier.from_string(parts[0]),
+            ComparisonVersionSpecifier.from_string(parts[1]),
+        )
 
     def meets(self, version: LibraryVersion) -> bool:
         """Check if a version meets all range constraints.
@@ -257,16 +298,23 @@ class RangeVersionSpecifier(VersionSpecifier):
         Returns:
             True if the version satisfies all constraints, False otherwise.
         """
-        # Exclude pre-release versions
-        if version.pre_stage is not None:
-            return False
-
         # All constraints must be satisfied
         return all(constraint.meets(version) for constraint in self.constraints)
 
+    def __eq__(self, value: object, /) -> bool:
+        """Check for equality between this RangeVersionSpecifier and the value"""
+        if not isinstance(value, RangeVersionSpecifier):
+            return False
+
+        return self.constraints == value.constraints
+
+    def __repr__(self) -> str:
+        return str(self)
+
     def __str__(self) -> str:
         """Return string representation of the specifier."""
-        return f"RangeVersionSpecifier({self.range_str})"
+        range_str = ",".join(f"{c.operator}{c.version}" for c in self.constraints)
+        return f"RangeVersionSpecifier({range_str})"
 
 
 def meets_constraints(
@@ -354,37 +402,24 @@ def version_specifier_from_str(version_specifier_str: str) -> VersionSpecifier:
 
     specifier_str = version_specifier_str.strip()
 
-    # Check for caret requirement (^x.y.z)
-    if specifier_str.startswith("^"):
-        version_str = specifier_str[1:].strip()
-        try:
-            version = LibraryVersion(version_str)
-            return CaretVersionSpecifier(version)
-        except ValueError as e:
-            raise ValueError(f"Invalid caret version specifier: {specifier_str}") from e
-
-    # Check for range requirement (contains comma)
-    if "," in specifier_str:
-        return RangeVersionSpecifier(specifier_str)
-
-    # Check for comparison requirement (starts with >=, <=, >, <)
-    comparison_match = re.match(r"^\s*(>=|<=|>|<)\s*(.+)\s*$", specifier_str)
-    if comparison_match:
-        operator = comparison_match.group(1)
-        version_str = comparison_match.group(2).strip()
-        try:
-            version = LibraryVersion(version_str)
-            return ComparisonVersionSpecifier(operator, version)  # type: ignore[arg-type]
-        except ValueError as e:
-            raise ValueError(f"Invalid comparison version specifier: {specifier_str}") from e
-
-    # Check for invalid operators (like ==)
-    if re.match(r"^\s*(==|!=|~=|~>|~)\s*", specifier_str):
-        raise ValueError(f"Unsupported operator in version specifier: {specifier_str}")
-
-    # Assume it's a direct version
     try:
-        version = LibraryVersion(specifier_str)
-        return DirectVersionSpecifier(version)
-    except ValueError as e:
-        raise ValueError(f"Invalid version specifier: {specifier_str}") from e
+        return RangeVersionSpecifier.from_string(specifier_str)
+    except ValueError:
+        pass
+
+    try:
+        return ComparisonVersionSpecifier.from_string(specifier_str)
+    except ValueError:
+        pass
+
+    try:
+        return CaretVersionSpecifier.from_string(specifier_str)
+    except ValueError:
+        pass
+
+    try:
+        return DirectVersionSpecifier.from_string(specifier_str)
+    except ValueError:
+        pass
+
+    raise ValueError(f"Unable to convert to version specifier: '{version_specifier_str}'")

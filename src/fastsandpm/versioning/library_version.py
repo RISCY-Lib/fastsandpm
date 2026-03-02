@@ -98,6 +98,9 @@ class LibraryVersion:
         Args:
             version: A version string in "major.minor.patch" or
                 "major.minor.patch.pre" or "major.minor.patch-pre" format.
+
+        Raises:
+            ValueError: If the version string format is invalid.
         """
         ...
 
