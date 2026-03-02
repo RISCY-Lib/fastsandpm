@@ -30,8 +30,22 @@ readme = "README.md"
 authors = [
     { name = "Benjamin Davis", email = "allrisc.dev@gmail.com" }
 ]
+license = {file = "LICENSE"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Archiving :: Packaging",
+    "Topic :: Utilities",
+]
+keywords = ["rtl", "hdl", "packaging", "Verilog", "UVM", "SystemVerilog"]
 
 requires-python = ">=3.12"
+
 dependencies = [
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
@@ -59,6 +73,10 @@ typing=[
     "mypy>=1.4.1",
     "types-pyyaml>=6.0.12.20250516",
 ]
+
+[project.urls]
+Homepage = "https://github.com/RISC-Lib/fastsandpm"
+Documentation = "https://fastsandpm.readthedocs.io/en/latest/index.html"
 
 # Tool Configurations
 ####################################################################################################
