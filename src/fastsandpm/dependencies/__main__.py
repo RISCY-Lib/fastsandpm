@@ -38,8 +38,9 @@ if __name__ == "__main__":
     }
 
     try:
-        import certifi
         import os
+
+        import certifi  # type: ignore[import-not-found]
         os.environ["SSL_CERT_FILE"] = certifi.where()
     except ImportError:
         pass

@@ -26,10 +26,17 @@ import resolvelib
 from resolvelib.structs import Matches, RequirementInformation
 
 from fastsandpm.dependencies.candidates import Candidate, candidate_factory
-from fastsandpm.dependencies.requirements import ConcreteRequirement
+from fastsandpm.dependencies.requirements import ConcreteRequirement, PathRequirement
 from fastsandpm.manifest import Manifest
 from fastsandpm.registries import Registries
 from fastsandpm.versioning.library_version import LibraryVersion as LibraryVersion
+from fastsandpm.versioning.specifier import (
+    CaretVersionSpecifier,
+    ComparisonVersionSpecifier,
+    DirectVersionSpecifier,
+    RangeVersionSpecifier,
+    VersionSpecifier,
+)
 
 if TYPE_CHECKING:
     from resolvelib.providers import Preference
@@ -76,7 +83,47 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
           operator, such as ``>=`` or ``!=``.
         * Alphabetical order for consistency (aids debuggability).
         """
-        return identifier
+        try:
+            next(iter(information[identifier]))
+        except StopIteration:
+            has_information = False
+        else:
+            has_information = True
+
+        if has_information:
+            info_reqs: list[ConcreteRequirement] = [r for r, _ in information[identifier]]
+        else:
+            info_reqs = []
+
+        has_path_req = any(isinstance(r, PathRequirement) for r in info_reqs)
+        has_pinned = any(
+            isinstance(getattr(r, "version", None), DirectVersionSpecifier) for r in info_reqs
+        )
+
+        def _req_has_upper_bound(req: ConcreteRequirement) -> bool:
+            if not (version := getattr(req, "version", None)):
+                return False
+            assert isinstance(version, VersionSpecifier)
+
+            if isinstance(version, CaretVersionSpecifier):
+                return True
+
+            if isinstance(version, RangeVersionSpecifier):
+                return any(c.operator in ["<", "<=", "^"] for c in version.constraints)
+
+            if isinstance(version, ComparisonVersionSpecifier):
+                return version.operator in ["<", "<=", "^"]
+
+            return False
+
+        has_upper_bound = any(_req_has_upper_bound(r) for r in info_reqs)
+
+        return (
+            not has_path_req,
+            not has_pinned,
+            not has_upper_bound,
+            identifier
+        )
 
     def find_matches(
         self,
