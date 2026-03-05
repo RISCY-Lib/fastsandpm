@@ -16,29 +16,43 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""Module for handling semantic versioning and version range specifications.
+"""Semantic versioning and version specification subpackage.
 
-This module provides classes and functions for parsing, comparing, and
-resolving semantic versions. It supports:
+This subpackage provides classes and functions for parsing, comparing, and
+resolving semantic versions used throughout FastSandPM. It supports standard
+semantic versioning with extensions for pre-release identifiers.
 
-- Semantic versioning with major.minor.patch format (e.g., "1.2.3")
-- Optional pre-release identifiers (e.g., "1.2.3.alpha")
-- Version constraints with comparison operators (e.g., ">=1.0.0", "<2.0.0")
-- Version ranges combining multiple constraints (e.g., ">1.0.0,<2.0.0")
+Supported Version Formats:
+    - Standard: ``major.minor.patch`` (e.g., "1.2.3")
+    - Pre-release with separator: ``major.minor.patch-pre`` (e.g., "1.2.3-alpha")
+    - Pre-release with dot: ``major.minor.patch.pre`` (e.g., "1.2.3.rc1")
+
+Supported Specifier Formats:
+    - Direct version: ``"1.0.0"`` (exact match)
+    - Caret requirement: ``"^1.2.3"`` (semver-compatible)
+    - Comparison: ``">=1.0.0"``, ``"<2.0.0"``
+    - Range: ``">=1.0.0,<2.0.0"``
 
 Classes:
-    PreReleaseStage: Enum for a pre-release stage.
+    PreReleaseStage: Enum for pre-release stages (ALPHA, BETA, RELEASE_CANDIDATE).
     LibraryVersion: Represents and compares semantic versions.
-    VersionSpecifier: Base class for version specifications.
+    VersionSpecifier: Abstract base class for version specifications.
     DirectVersionSpecifier: Matches a single version exactly.
-    CaretVersionSpecifier: Matches semver-compatible versions.
-    ComparisonVersionSpecifier: Matches versions using comparison operators.
-    RangeVersionSpecifier: Matches versions matching a range specification.
+    CaretVersionSpecifier: Matches semver-compatible versions (^x.y.z).
+    ComparisonVersionSpecifier: Matches using comparison operators.
+    RangeVersionSpecifier: Matches versions within a range.
 
 Functions:
     meets_constraints: Check if a version meets specified constraints.
     find_compatible_version: Find the best matching version from available options.
-    version_specifier_from_str: Create a version specifier from a string.
+    version_specifier_from_str: Parse a version specifier string.
+
+Example:
+    >>> from fastsandpm.versioning import LibraryVersion, version_specifier_from_str
+    >>> v = LibraryVersion("1.2.3")
+    >>> spec = version_specifier_from_str("^1.0.0")
+    >>> spec.satisfied_by(v)
+    True
 """
 
 from __future__ import annotations

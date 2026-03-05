@@ -16,33 +16,53 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""Module which contains the types for the package manifest.
+"""Module for package manifest handling and parsing.
 
-This module provides:
-- Manifest: The main manifest model representing a proj.toml file
-- Package: The package metadata section of the manifest
-- get_manifest: Function to load and parse a manifest from a repository path
+This module provides data models and functions for working with FastSandPM
+manifest files (proj.toml). It handles parsing, validation, and representation
+of package metadata, dependencies, and registry configurations.
+
+Classes:
+    ManifestNotFoundError: Exception raised when manifest file is not found.
+    ManifestParseError: Exception raised when manifest parsing fails.
+    Package: Package metadata (name, version, description, authors).
+    Dependencies: Collection of package dependencies.
+    Manifest: The complete manifest model.
+
+Functions:
+    get_manifest: Load and parse a manifest from a repository path.
+    get_manifest_from_bytes: Parse a manifest from raw bytes content.
+
+Constants:
+    MANIFEST_FILENAME: The default manifest filename ("proj.toml").
+
+Example:
+    >>> from fastsandpm.manifest import get_manifest
+    >>> manifest = get_manifest("./my-project")
+    >>> print(manifest.package.name)
+    'my-package'
 """
 
 from __future__ import annotations
 
+import os
 import pathlib
 import tomllib
-from typing import Annotated, Any
+from typing import Annotated, Any, Self, SupportsIndex
 
 from pydantic import (
     BaseModel,
     Field,
     PlainSerializer,
     PlainValidator,
+    RootModel,
     ValidationError,
     WithJsonSchema,
     model_validator,
 )
 
-from fastsandpm.dependencies import (
-    Dependencies,
-)
+from fastsandpm.dependencies.requirements import ConcreteRequirement
+from fastsandpm.registries import Registries
 from fastsandpm.versioning import LibraryVersion
 
 _Version = Annotated[
@@ -53,65 +73,254 @@ _Version = Annotated[
 ]
 
 
+class ManifestNotFoundError(FileNotFoundError):
+    """Raised when a manifest file cannot be found at the specified path."""
+
+    def __init__(self, path: pathlib.Path) -> None:
+        """Initialize the error with the path that was searched.
+
+        Args:
+            path: The path where the manifest was expected.
+        """
+        self.path = path
+        super().__init__(f"Manifest file not found: {path / MANIFEST_FILENAME}")
+
+
+class ManifestParseError(ValueError):
+    """Raised when a manifest file cannot be parsed."""
+
+    def __init__(self, path: pathlib.Path, reason: str) -> None:
+        """Initialize the error with the path and reason for failure.
+
+        Args:
+            path: The path to the manifest file.
+            reason: Description of why parsing failed.
+        """
+        self.path = path
+        self.reason = reason
+        super().__init__(f"Failed to parse manifest at {path}: {reason}")
+
+
 class Package(BaseModel):
-    """The package details from a package manifest.
+    """Package metadata from a manifest file.
+
+    Contains the core package information including name, version, and
+    description. Authors and readme path are optional fields.
 
     Example TOML:
+        .. code-block:: toml
 
-    .. code-block:: TOML
+            [package]
+            name = "package_name"
+            version = "1.2.3-a4"
+            description = "A sample package"
 
-        [package]
-        name = "package_name"
-        version = "1.2.3-a4"
-        description = "A sample package"
+            authors = "Jane Doe <jdoe@doelife.com>"
+            readme = "README.txt"
 
-        authors = "Jane Doe <jdoe@doelife.com>"
-        readme = "README.txt"
-
-    .. seealso::
-
-        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
-        for details on the parent BaseModel class and it's methods.
+    See Also:
+        `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`_
+        for details on the parent BaseModel class and its methods.
     """
 
     name: str
-    """The name of the package."""
+    """The unique package identifier."""
     version: _Version
-    """The version of the package."""
+    """The semantic version of the package."""
     description: str
-    """The description of the package."""
+    """A brief description of the package."""
 
     authors: str | list[str] | dict[str, str] | None = None
-    """The authors of the package."""
+    """Package authors (string, list, or dict format)."""
     readme: pathlib.Path | None = None  # TODO: Field(default_factory=_find_readme)
-    """The readme of the package."""
+    """Path to the README file relative to manifest."""
+
+
+class Dependencies(RootModel[list[ConcreteRequirement]]):
+    """A collection of package dependencies.
+
+    This class handles parsing dependencies from various TOML formats into
+    the appropriate dependency type objects. It provides list-like access
+    to the underlying dependency collection.
+
+    Supported TOML formats:
+        - Simple string: ``name = "version"``
+        - Registry format: ``name = {version = "1.0.0"}``
+        - Git format: ``name = {git = "url", ...}``
+        - Path format: ``name = {path = "./local/path"}``
+
+    The model validator automatically converts dictionary-style TOML
+    dependencies into the correct dependency type based on the keys present.
+
+    Example:
+        >>> deps = manifest.dependencies
+        >>> for dep in deps:
+        ...     print(dep.name)
+        >>> specific_dep = deps.get_by_name("my-lib")
+
+    See Also:
+        `Pydantic RootModel <https://docs.pydantic.dev/latest/api/root_model/>`_
+        for details on the base class and its methods.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_dependencies(cls, data: Any) -> Any:
+        """Parse dependency data from various formats.
+
+        Handles conversion from TOML-style dependency specifications to
+        the internal dependency model format.
+
+        Args:
+            data: Raw dependency data, either as a dict (from TOML) or list.
+
+        Returns:
+            A list of dependency dictionaries ready for model instantiation.
+
+        Examples:
+            Input formats supported:
+            - {"name": "foo", "version": "1.0.0"} -> [{"name": "foo", ...}]
+            - {"foo": "1.0.0"} -> [{"name": "foo", "version": "1.0.0"}]
+            - {"foo": {"git": "url"}} -> [{"name": "foo", "git": "url"}]
+            - {"foo": {"path": "./path"}} -> [{"name": "foo", "path": "./path"}]
+        """
+        if isinstance(data, dict):
+            # Handle single dependency passed as dict with 'name' key
+            if "name" in data:
+                return [data]
+
+            # Convert dict-style dependencies to list
+            new_data = []
+            for name, spec in data.items():
+                if isinstance(spec, dict):
+                    # Dict specification: {git: ..., version: ...} or {path: ...}
+                    new_data.append({"name": name, **spec})
+                elif isinstance(spec, str):
+                    # Simple string specification: "version" -> RegistryDependency
+                    new_data.append({"name": name, "version": spec})
+                else:
+                    # Pass through as-is (will fail validation if invalid)
+                    new_data.append({"name": name, "version": spec})
+            return new_data
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_unique_names(self) -> Self:
+        """Validate that all dependency names are unique.
+
+        Raises:
+            ValueError: If duplicate dependency names are found.
+
+        Returns:
+            Self: The validated model instance.
+        """
+        names = [dep.name for dep in self.root]
+        duplicates = [name for name in names if names.count(name) > 1]
+
+        if duplicates:
+            unique_duplicates = list(set(duplicates))
+            raise ValueError(f"Duplicate dependency names found: {unique_duplicates}")
+
+        return self
+
+    def __iter__(self):
+        """Iterate over the dependencies.
+
+        Returns:
+            Iterator over the dependency list.
+        """
+        return iter(self.root)
+
+    def __len__(self) -> int:
+        """Return the number of dependencies.
+
+        Returns:
+            The count of dependencies.
+        """
+        return len(self.root)
+
+    def __getitem__(self, index: int) -> ConcreteRequirement:
+        """Get a dependency by index.
+
+        Args:
+            index: The index of the dependency to retrieve.
+
+        Returns:
+            The dependency at the specified index.
+        """
+        return self.root[index]
+
+    def append(self, object: ConcreteRequirement) -> None:
+        """Append a dependency to the collection.
+
+        Args:
+            object: The dependency to append to the end of the collection.
+        """
+        self.root.append(object)
+
+    def insert(self, index: SupportsIndex, object: ConcreteRequirement) -> None:
+        """Insert a dependency at a specific position.
+
+        Args:
+            index: The position where the dependency should be inserted.
+            object: The dependency to insert into the collection.
+        """
+        self.root.insert(index, object)
+
+    def get_by_name(self, name: str) -> ConcreteRequirement | None:
+        """Get a dependency by its name.
+
+        Args:
+            name: The name of the dependency to find.
+
+        Returns:
+            The dependency with the specified name, or None if not found.
+        """
+        for dep in self.root:
+            if dep.name == name:
+                return dep
+        return None
 
 
 class Manifest(BaseModel):
-    """The package manifest.
+    """The complete package manifest representing a proj.toml file.
 
-    .. seealso::
+    A manifest contains all the information needed to build, distribute,
+    and manage dependencies for a FastSandPM package. It includes package
+    metadata, required and optional dependencies, and registry configurations.
 
-        See `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`__
-        for details on the parent BaseModel class and it's methods.
+    Example TOML:
+        .. code-block:: toml
 
-    .. seealso::
+            [package]
+            name = "my-package"
+            version = "1.0.0"
+            description = "My HDL package"
 
-        See :py:class:`Package` and :py:class:`Dependencies` for details on the child sections of
-        the manifest.
+            [dependencies]
+            some-lib = "^1.2.0"
+
+            [optional_dependencies.dev]
+            test-lib = "1.0.0"
+
+    See Also:
+        - :class:`Package` for package metadata details.
+        - :class:`Dependencies` for dependency collection details.
+        - `Pydantic BaseModel <https://docs.pydantic.dev/latest/api/base_model/>`_
+          for details on the parent BaseModel class.
     """
 
     package: Package
-    """The package metadata found in the 'package' section of the manifest."""
+    """The package metadata (name, version, description)."""
 
     dependencies: Dependencies = Field(default_factory=lambda: Dependencies(list()))
-    """The package dependencies found in the 'dependencies' section of the manifest."""
-    optional_dependencies: dict[str, Dependencies] = (
-        Field(default_factory=dict)
-    )
-    """The package optional dependencies found in the 'optional_dependencies'
-    section of the manifest.
-    """
+    """Required package dependencies."""
+    optional_dependencies: dict[str, Dependencies] = Field(default_factory=dict)
+    """Named groups of optional dependencies."""
+
+    registries: Registries = Field(default_factory=lambda: Registries(list()))
+    """Package registries for dependency resolution."""
 
     @model_validator(mode="before")
     @classmethod
@@ -168,35 +377,7 @@ class Manifest(BaseModel):
 MANIFEST_FILENAME = "proj.toml"
 
 
-class ManifestNotFoundError(FileNotFoundError):
-    """Raised when a manifest file cannot be found at the specified path."""
-
-    def __init__(self, path: pathlib.Path) -> None:
-        """Initialize the error with the path that was searched.
-
-        Args:
-            path: The path where the manifest was expected.
-        """
-        self.path = path
-        super().__init__(f"Manifest file not found: {path / MANIFEST_FILENAME}")
-
-
-class ManifestParseError(ValueError):
-    """Raised when a manifest file cannot be parsed."""
-
-    def __init__(self, path: pathlib.Path, reason: str) -> None:
-        """Initialize the error with the path and reason for failure.
-
-        Args:
-            path: The path to the manifest file.
-            reason: Description of why parsing failed.
-        """
-        self.path = path
-        self.reason = reason
-        super().__init__(f"Failed to parse manifest at {path}: {reason}")
-
-
-def get_manifest(path: pathlib.Path) -> Manifest:
+def get_manifest(path: os.PathLike) -> Manifest:
     """Load and parse a manifest from a repository path.
 
     Looks for a `proj.toml` file in the specified directory, parses it,
@@ -220,7 +401,6 @@ def get_manifest(path: pathlib.Path) -> Manifest:
         >>> print(manifest.package.name)
         'my-package'
     """
-    # Ensure path is a Path object
     if not isinstance(path, pathlib.Path):
         path = pathlib.Path(path)
 
@@ -245,3 +425,39 @@ def get_manifest(path: pathlib.Path) -> Manifest:
         return Manifest.model_validate(data)
     except ValidationError as e:
         raise ManifestParseError(path, str(e)) from e
+
+
+def get_manifest_from_bytes(content: bytes, source: str = "<bytes>") -> Manifest:
+    """Parse a manifest from raw bytes content.
+
+    This function is useful for parsing manifest content that has been fetched
+    from a remote source (e.g., via `git archive`) without writing to disk.
+
+    Args:
+        content: The raw bytes content of a proj.toml file.
+        source: A string identifying the source of the content (for error messages).
+
+    Returns:
+        The parsed Manifest object.
+
+    Raises:
+        ManifestParseError: If the TOML content is malformed or doesn't match
+            the expected manifest schema.
+
+    Example:
+        >>> content = b'[package]\\nname = "my-pkg"\\nversion = "1.0.0"\\n...'
+        >>> manifest = get_manifest_from_bytes(content, source="git://repo")
+        >>> print(manifest.package.name)
+        'my-pkg'
+    """
+    # Parse the TOML content
+    try:
+        data = tomllib.loads(content.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
+        raise ManifestParseError(pathlib.Path(source), f"Invalid TOML syntax: {e}") from e
+
+    # Parse the data into a Manifest object
+    try:
+        return Manifest.model_validate(data)
+    except ValidationError as e:
+        raise ManifestParseError(pathlib.Path(source), str(e)) from e

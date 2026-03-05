@@ -24,7 +24,7 @@ build-backend = "uv_build"
 
 [project]
 name = "FastSandPM"
-version = "0.1.0a3"
+version = "0.1.0b1"
 description = """FastSandPM is a a package management and dependency resolution tool for HDL Design and DV projects"""
 readme = "README.md"
 authors = [
@@ -49,6 +49,7 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
+    "resolvelib>=1.2.1",
 ]
 
 [dependency-groups]
@@ -128,7 +129,7 @@ preview = true
 
 [tool.tox]
 env_list = [
-    "py12", "py13", "py14",
+    "py312", "py313", "py314",
     "style",
     "typing",
     "docs_dirhtml",
@@ -136,11 +137,11 @@ env_list = [
 
 [tool.tox.env_run_base]
 description = "pytest on latest dependency versions"
-runner = "uv-venv-lock-runner"
+runner = "uv-venv-runner"
 package = "wheel"
 wheel_build_env = ".pkg"
 constrain_package_deps = true
-use_frozen_constraints = true
+#use_frozen_constraints = true
 dependency_groups = ["tests"]
 
 commands = [[
