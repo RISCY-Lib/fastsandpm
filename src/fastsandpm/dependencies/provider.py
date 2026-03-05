@@ -20,12 +20,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from functools import wraps
+from types import FunctionType
 from typing import TYPE_CHECKING
 
 import resolvelib
 from resolvelib.structs import Matches, RequirementInformation
 
-from fastsandpm.dependencies.candidates import Candidate
+from fastsandpm.dependencies.candidates import Candidate, candidate_factory
 from fastsandpm.dependencies.requirements import ConcreteRequirement
 from fastsandpm.manifest import Manifest
 from fastsandpm.registries import Registries
@@ -38,21 +40,38 @@ if TYPE_CHECKING:
 FastSandReqInfo = RequirementInformation[ConcreteRequirement, Candidate]
 
 
-class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidate, str]):
+def print_func(f: FunctionType):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        print(f"{f.__name__}(")
+        for idx, val in enumerate(args[1:]):
+            print(f"\targs[{idx}]={val}")
+        for k, val in kwargs.items():
+            print(f"\t{k}={val}")
 
+        rval = f(*args, **kwargs)
+
+        print(f") -> {rval}\n")
+        return rval
+    return wrapper
+
+
+class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidate, str]):
     def __init__(self, registries: Registries) -> None:
         self._registries = registries
 
+    @print_func
     def identify(self, requirement_or_candidate: ConcreteRequirement | Candidate) -> str:
         return requirement_or_candidate.name
 
+    @print_func
     def get_preference(
         self,
         identifier: str,
         resolutions: Mapping[str, Candidate],
         candidates: Mapping[str, Iterator[Candidate]],
         information: Mapping[str, Iterator[FastSandReqInfo]],
-        backtrack_causes: Sequence[FastSandReqInfo]
+        backtrack_causes: Sequence[FastSandReqInfo],
     ) -> Preference:
         """Produce a sort key for given requirement based on preference.
 
@@ -77,53 +96,98 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
           operator, such as ``>=`` or ``!=``.
         * Alphabetical order for consistency (aids debuggability).
         """
-        print("get_preference(")
-        print(f"\t{identifier=}")
-        print(f"\t{resolutions=}")
-        print(f"\t{candidates=}")
-        print(f"\t{information=}")
-        print(f"\t{backtrack_causes=}")
-        print(")\n")
-        raise NotImplementedError
+        return identifier
 
+    @print_func
     def find_matches(
         self,
         identifier: str,
         requirements: Mapping[str, Iterator[ConcreteRequirement]],
-        incompatibilities: Mapping[str, Iterator[Candidate]]
+        incompatibilities: Mapping[str, Iterator[Candidate]],
     ) -> Matches[Candidate]:
-        raise NotImplementedError
+        """Find all possible candidates that satisfy the given constraints.
 
+        Gets all candidates for all requirements of the identifier.
+        Then filters out the Candidates previously marked as incompatible.
+
+        Args:
+            identifier: An identifier as returned by ``identify()``. All
+                candidates returned by this method should produce the same
+                identifier.
+            requirements: A mapping of requirements that all returned
+                candidates must satisfy. Each key is an identifier, and the value
+                an iterator of requirements for that dependency.
+            incompatibilities: A mapping of known incompatibile candidates of
+                each dependency. Each key is an identifier, and the value an
+                iterator of incompatibilities known to the resolver. All
+                incompatibilities *must* be excluded from the return value.
+        """
+        # Collect all requirements for this identifier
+        reqs_for_identifier = list(requirements.get(identifier, iter([])))
+
+        # Collect all incompatible candidates for this identifier
+        incompatible_candidates = set(incompatibilities.get(identifier, iter([])))
+
+        # Get all candidates from all requirements
+        all_candidates: list[Candidate] = []
+        for req in reqs_for_identifier:
+            all_candidates.extend(candidate_factory(req, self._registries))
+
+        # Filter out incompatible candidates
+        filtered_candidates = [c for c in all_candidates if c not in incompatible_candidates]
+
+        # Filter to only candidates that satisfy ALL requirements
+        def satisfies_all(candidate: Candidate) -> bool:
+            return all(candidate.satisfies(req) for req in reqs_for_identifier)
+
+        matching_candidates = [c for c in filtered_candidates if satisfies_all(c)]
+
+        # Remove duplicates while preserving order
+        seen: set[Candidate] = set()
+        unique_candidates: list[Candidate] = []
+        for c in matching_candidates:
+            if c not in seen:
+                seen.add(c)
+                unique_candidates.append(c)
+
+        return unique_candidates
+
+    @print_func
     def is_satisfied_by(self, requirement: ConcreteRequirement, candidate: Candidate) -> bool:
-        raise NotImplementedError
+        return candidate.satisfies(requirement)
 
+    @print_func
     def get_dependencies(self, candidate: Candidate) -> list[ConcreteRequirement]:
-        raise NotImplementedError
+        """Get the dependencies of a candidate."""
+        if candidate_manifest := candidate.get_manifest():
+            self._registries.root.extend(candidate_manifest.registries)
+            return candidate_manifest.dependencies.root
+        return []
 
+    @print_func
     def narrow_requirement_selection(
         self,
         identifiers: Iterable[str],
         resolutions: Mapping[str, Candidate],
         candidates: Mapping[str, Iterator[Candidate]],
         information: Mapping[str, Iterator[FastSandReqInfo]],
-        backtrack_causes: Sequence[FastSandReqInfo]
+        backtrack_causes: Sequence[FastSandReqInfo],
     ) -> list[str]:
-        return [req for req in super().narrow_requirement_selection(
-            identifiers,
-            resolutions,
-            candidates,
-            information,
-            backtrack_causes
-        )]
+        return [
+            req
+            for req in super().narrow_requirement_selection(
+                identifiers, resolutions, candidates, information, backtrack_causes
+            )
+        ]
 
 
 FastSandReporter = resolvelib.BaseReporter[ConcreteRequirement, Candidate, str]
 
 
-def resolve(manifest: Manifest):
+def resolve(manifest: Manifest) -> dict[str, Candidate]:
     provider = FastSandProvider(manifest.registries)
     reporter: FastSandReporter = resolvelib.BaseReporter()
 
     resolver = resolvelib.Resolver(provider, reporter)
     result = resolver.resolve(manifest.dependencies)
-    return result
+    return result.mapping

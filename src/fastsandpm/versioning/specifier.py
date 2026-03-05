@@ -49,7 +49,7 @@ class VersionSpecifier(ABC):
     """Base class for version specifications."""
 
     @abstractmethod
-    def meets(self, version: LibraryVersion) -> bool:
+    def satisfied_by(self, version: LibraryVersion) -> bool:
         """Check if a version meets the specification.
 
         Args:
@@ -71,7 +71,7 @@ class DirectVersionSpecifier(VersionSpecifier):
         """
         self.version = version
 
-    def meets(self, version: LibraryVersion) -> bool:
+    def satisfied_by(self, version: LibraryVersion) -> bool:
         """Check if a version meets the specification.
 
         Args:
@@ -124,7 +124,7 @@ class CaretVersionSpecifier(VersionSpecifier):
         """
         self.version = version
 
-    def meets(self, version: LibraryVersion) -> bool:
+    def satisfied_by(self, version: LibraryVersion) -> bool:
         """Check if a version meets the caret specification.
 
         Args:
@@ -202,7 +202,7 @@ class ComparisonVersionSpecifier(VersionSpecifier):
         self.operator = operator
         self.version = version
 
-    def meets(self, version: LibraryVersion) -> bool:
+    def satisfied_by(self, version: LibraryVersion) -> bool:
         """Check if a version meets the comparison specification.
 
         Args:
@@ -289,7 +289,7 @@ class RangeVersionSpecifier(VersionSpecifier):
             ComparisonVersionSpecifier.from_string(parts[1]),
         )
 
-    def meets(self, version: LibraryVersion) -> bool:
+    def satisfied_by(self, version: LibraryVersion) -> bool:
         """Check if a version meets all range constraints.
 
         Args:
@@ -299,7 +299,7 @@ class RangeVersionSpecifier(VersionSpecifier):
             True if the version satisfies all constraints, False otherwise.
         """
         # All constraints must be satisfied
-        return all(constraint.meets(version) for constraint in self.constraints)
+        return all(constraint.satisfied_by(version) for constraint in self.constraints)
 
     def __eq__(self, value: object, /) -> bool:
         """Check for equality between this RangeVersionSpecifier and the value"""
@@ -337,7 +337,7 @@ def meets_constraints(
     if not constraints:
         return True
 
-    return all(constraint.meets(version) for constraint in constraints)
+    return all(constraint.satisfied_by(version) for constraint in constraints)
 
 
 def find_compatible_version(

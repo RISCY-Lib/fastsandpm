@@ -58,34 +58,34 @@ class TestDirectVersionSpecifierBasic:
     def test_direct_specifier_exact_match(self) -> None:
         """Test that DirectVersionSpecifier matches exact version."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
 
     def test_direct_specifier_no_match_different_patch(self) -> None:
         """Test that DirectVersionSpecifier does not match different patch."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.1")) is False
 
     def test_direct_specifier_no_match_different_minor(self) -> None:
         """Test that DirectVersionSpecifier does not match different minor."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.1.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.1.0")) is False
 
     def test_direct_specifier_no_match_different_major(self) -> None:
         """Test that DirectVersionSpecifier does not match different major."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is False
 
     def test_direct_specifier_zero_version(self) -> None:
         """Test DirectVersionSpecifier with zero version."""
         specifier = DirectVersionSpecifier(LibraryVersion("0.0.0"))
-        assert specifier.meets(LibraryVersion("0.0.0")) is True
-        assert specifier.meets(LibraryVersion("0.0.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("0.0.1")) is False
 
     def test_direct_specifier_large_version_numbers(self) -> None:
         """Test DirectVersionSpecifier with large version numbers."""
         specifier = DirectVersionSpecifier(LibraryVersion("100.200.300"))
-        assert specifier.meets(LibraryVersion("100.200.300")) is True
-        assert specifier.meets(LibraryVersion("100.200.301")) is False
+        assert specifier.satisfied_by(LibraryVersion("100.200.300")) is True
+        assert specifier.satisfied_by(LibraryVersion("100.200.301")) is False
 
 
 class TestDirectVersionSpecifierPreRelease:
@@ -94,27 +94,27 @@ class TestDirectVersionSpecifierPreRelease:
     def test_direct_specifier_prerelease_exact_match(self) -> None:
         """Test DirectVersionSpecifier matches exact pre-release version."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0-beta.1"))
-        assert specifier.meets(LibraryVersion("1.0.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-beta.1")) is True
 
     def test_direct_specifier_prerelease_no_match_release(self) -> None:
         """Test DirectVersionSpecifier pre-release does not match release."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0-alpha"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is False
 
     def test_direct_specifier_release_no_match_prerelease(self) -> None:
         """Test DirectVersionSpecifier release does not match pre-release."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.0-alpha")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-alpha")) is False
 
     def test_direct_specifier_different_prerelease_stages(self) -> None:
         """Test DirectVersionSpecifier does not match different pre-release stages."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0-alpha"))
-        assert specifier.meets(LibraryVersion("1.0.0-beta")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-beta")) is False
 
     def test_direct_specifier_different_prerelease_numbers(self) -> None:
         """Test DirectVersionSpecifier does not match different pre-release numbers."""
         specifier = DirectVersionSpecifier(LibraryVersion("1.0.0-rc1"))
-        assert specifier.meets(LibraryVersion("1.0.0-rc2")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-rc2")) is False
 
 
 class TestDirectVersionSpecifierStringRepresentation:
@@ -141,32 +141,32 @@ class TestCaretVersionSpecifierBasic:
     def test_caret_specifier_exact_match(self) -> None:
         """Test CaretVersionSpecifier matches exact version."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.2.3")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.3")) is True
 
     def test_caret_specifier_allows_patch_bump(self) -> None:
         """Test CaretVersionSpecifier allows patch version bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.2.4")) is True
-        assert specifier.meets(LibraryVersion("1.2.10")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.4")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.10")) is True
 
     def test_caret_specifier_allows_minor_bump(self) -> None:
         """Test CaretVersionSpecifier allows minor version bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.3.0")) is True
-        assert specifier.meets(LibraryVersion("1.9.9")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.9.9")) is True
 
     def test_caret_specifier_rejects_major_bump(self) -> None:
         """Test CaretVersionSpecifier rejects major version bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is False
-        assert specifier.meets(LibraryVersion("3.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("3.0.0")) is False
 
     def test_caret_specifier_rejects_older_version(self) -> None:
         """Test CaretVersionSpecifier rejects older versions."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.2.2")) is False
-        assert specifier.meets(LibraryVersion("1.1.0")) is False
-        assert specifier.meets(LibraryVersion("0.9.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.2.2")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.1.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.9.0")) is False
 
 
 class TestCaretVersionSpecifierZeroMajor:
@@ -179,23 +179,23 @@ class TestCaretVersionSpecifierZeroMajor:
     def test_caret_specifier_zero_major_exact_match(self) -> None:
         """Test CaretVersionSpecifier with 0.x.x matches exact version."""
         specifier = CaretVersionSpecifier(LibraryVersion("0.2.3"))
-        assert specifier.meets(LibraryVersion("0.2.3")) is True
+        assert specifier.satisfied_by(LibraryVersion("0.2.3")) is True
 
     def test_caret_specifier_zero_major_allows_patch_bump(self) -> None:
         """Test CaretVersionSpecifier with 0.x.x allows patch bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("0.2.3"))
-        assert specifier.meets(LibraryVersion("0.2.4")) is True
-        assert specifier.meets(LibraryVersion("0.2.99")) is True
+        assert specifier.satisfied_by(LibraryVersion("0.2.4")) is True
+        assert specifier.satisfied_by(LibraryVersion("0.2.99")) is True
 
     def test_caret_specifier_zero_major_rejects_minor_bump(self) -> None:
         """Test CaretVersionSpecifier with 0.x.x rejects minor bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("0.2.3"))
-        assert specifier.meets(LibraryVersion("0.3.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.3.0")) is False
 
     def test_caret_specifier_zero_major_rejects_major_bump(self) -> None:
         """Test CaretVersionSpecifier with 0.x.x rejects major bump."""
         specifier = CaretVersionSpecifier(LibraryVersion("0.2.3"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is False
 
 
 class TestCaretVersionSpecifierPreRelease:
@@ -205,14 +205,14 @@ class TestCaretVersionSpecifierPreRelease:
     def test_caret_specifier_excludes_prerelease(self) -> None:
         """Test CaretVersionSpecifier excludes pre-release versions."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
-        assert specifier.meets(LibraryVersion("1.2.4-alpha")) is True
-        assert specifier.meets(LibraryVersion("1.2.3a0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.4-alpha")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.3a0")) is False
 
     def test_caret_specifier_excludes_prerelease_of_next_major(self) -> None:
         """Test CaretVersionSpecifier excludes pre-release of next major."""
         specifier = CaretVersionSpecifier(LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("2.0.0-alpha")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.0-alpha")) is False
 
 
 class TestComparisonVersionSpecifierGreaterThanOrEqual:
@@ -221,27 +221,27 @@ class TestComparisonVersionSpecifierGreaterThanOrEqual:
     def test_comparison_gte_exact_match(self) -> None:
         """Test >= matches exact version."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
 
     def test_comparison_gte_higher_patch(self) -> None:
         """Test >= matches higher patch version."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.1")) is True
 
     def test_comparison_gte_higher_minor(self) -> None:
         """Test >= matches higher minor version."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.1.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.1.0")) is True
 
     def test_comparison_gte_higher_major(self) -> None:
         """Test >= matches higher major version."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
     def test_comparison_gte_rejects_lower(self) -> None:
         """Test >= rejects lower versions."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("0.9.9")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.9.9")) is False
 
 
 class TestComparisonVersionSpecifierLessThanOrEqual:
@@ -250,27 +250,27 @@ class TestComparisonVersionSpecifierLessThanOrEqual:
     def test_comparison_lte_exact_match(self) -> None:
         """Test <= matches exact version."""
         specifier = ComparisonVersionSpecifier("<=", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
     def test_comparison_lte_lower_patch(self) -> None:
         """Test <= matches lower patch version."""
         specifier = ComparisonVersionSpecifier("<=", LibraryVersion("2.0.1"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
     def test_comparison_lte_lower_minor(self) -> None:
         """Test <= matches lower minor version."""
         specifier = ComparisonVersionSpecifier("<=", LibraryVersion("2.1.0"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
     def test_comparison_lte_lower_major(self) -> None:
         """Test <= matches lower major version."""
         specifier = ComparisonVersionSpecifier("<=", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
 
     def test_comparison_lte_rejects_higher(self) -> None:
         """Test <= rejects higher versions."""
         specifier = ComparisonVersionSpecifier("<=", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.1")) is False
 
 
 class TestComparisonVersionSpecifierGreaterThan:
@@ -279,17 +279,17 @@ class TestComparisonVersionSpecifierGreaterThan:
     def test_comparison_gt_rejects_exact_match(self) -> None:
         """Test > does not match exact version."""
         specifier = ComparisonVersionSpecifier(">", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is False
 
     def test_comparison_gt_higher_patch(self) -> None:
         """Test > matches higher patch version."""
         specifier = ComparisonVersionSpecifier(">", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("1.0.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.1")) is True
 
     def test_comparison_gt_rejects_lower(self) -> None:
         """Test > rejects lower versions."""
         specifier = ComparisonVersionSpecifier(">", LibraryVersion("1.0.0"))
-        assert specifier.meets(LibraryVersion("0.9.9")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.9.9")) is False
 
 
 class TestComparisonVersionSpecifierLessThan:
@@ -298,17 +298,17 @@ class TestComparisonVersionSpecifierLessThan:
     def test_comparison_lt_rejects_exact_match(self) -> None:
         """Test < does not match exact version."""
         specifier = ComparisonVersionSpecifier("<", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is False
 
     def test_comparison_lt_lower_patch(self) -> None:
         """Test < matches lower patch version."""
         specifier = ComparisonVersionSpecifier("<", LibraryVersion("2.0.1"))
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
     def test_comparison_lt_rejects_higher(self) -> None:
         """Test < rejects higher versions."""
         specifier = ComparisonVersionSpecifier("<", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("2.0.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.1")) is False
 
 
 class TestComparisonVersionSpecifierPreRelease:
@@ -318,13 +318,13 @@ class TestComparisonVersionSpecifierPreRelease:
     def test_comparison_gte_excludes_prerelease(self) -> None:
         """Test >= excludes pre-release versions."""
         specifier = ComparisonVersionSpecifier(">=", LibraryVersion("1.2.3"))
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
-        assert specifier.meets(LibraryVersion("1.2.3-beta.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.2.3-beta.1")) is False
 
     def test_comparison_lt_excludes_prerelease(self) -> None:
         """Test < excludes pre-release versions."""
         specifier = ComparisonVersionSpecifier("<", LibraryVersion("2.0.0"))
-        assert specifier.meets(LibraryVersion("1.9.0-rc1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.9.0-rc1")) is True
 
 
 class TestRangeVersionSpecifierBasic:
@@ -333,29 +333,29 @@ class TestRangeVersionSpecifierBasic:
     def test_range_specifier_within_range(self) -> None:
         """Test RangeVersionSpecifier matches versions within the range."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
-        assert specifier.meets(LibraryVersion("1.5.0")) is True
-        assert specifier.meets(LibraryVersion("1.9.9")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.5.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.9.9")) is True
 
     def test_range_specifier_at_lower_bound(self) -> None:
         """Test RangeVersionSpecifier matches lower bound (inclusive)."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
 
     def test_range_specifier_at_upper_bound(self) -> None:
         """Test RangeVersionSpecifier excludes upper bound (exclusive)."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("2.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is False
 
     def test_range_specifier_below_range(self) -> None:
         """Test RangeVersionSpecifier rejects version below range."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("0.9.9")) is False
+        assert specifier.satisfied_by(LibraryVersion("0.9.9")) is False
 
     def test_range_specifier_above_range(self) -> None:
         """Test RangeVersionSpecifier rejects version above range."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("2.0.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("2.0.1")) is False
 
 
 class TestRangeVersionSpecifierExclusiveBounds:
@@ -364,13 +364,13 @@ class TestRangeVersionSpecifierExclusiveBounds:
     def test_range_specifier_exclusive_lower_bound(self) -> None:
         """Test RangeVersionSpecifier with exclusive lower bound."""
         specifier = RangeVersionSpecifier.from_string(">1.0.0,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.0.0")) is False
-        assert specifier.meets(LibraryVersion("1.0.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.1")) is True
 
     def test_range_specifier_inclusive_upper_bound(self) -> None:
         """Test RangeVersionSpecifier with inclusive upper bound."""
         specifier = RangeVersionSpecifier.from_string(">=1.0.0,<=2.0.0")
-        assert specifier.meets(LibraryVersion("2.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("2.0.0")) is True
 
 
 class TestRangeVersionSpecifierPreRelease:
@@ -380,16 +380,16 @@ class TestRangeVersionSpecifierPreRelease:
     def test_range_specifier_excludes_prerelease(self) -> None:
         """Test RangeVersionSpecifier excludes pre-release versions from range."""
         specifier = RangeVersionSpecifier.from_string(">=1.2.3,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.3.0a1")) is True
-        assert specifier.meets(LibraryVersion("1.3.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0a1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0")) is True
 
     def test_range_specifier_excludes_prerelease_at_lower_bound(self) -> None:
         """Test RangeVersionSpecifier excludes pre-release at lower bound."""
         specifier = RangeVersionSpecifier.from_string(">=1.2.3,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
-        assert specifier.meets(LibraryVersion("1.5.0-alpha")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.5.0-alpha")) is True
         # 1.2.3-beta.1 is technically < 1.2.3 release, so excluded
-        assert specifier.meets(LibraryVersion("1.2.3-beta.1")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.2.3-beta.1")) is False
 
 
 class TestVersionSpecifierFromStrDirect:
@@ -399,13 +399,13 @@ class TestVersionSpecifierFromStrDirect:
         """Test parsing a basic direct version."""
         specifier = version_specifier_from_str("1.0.0")
         assert isinstance(specifier, DirectVersionSpecifier)
-        assert specifier.meets(LibraryVersion("1.0.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is True
 
     def test_parse_direct_version_with_prerelease(self) -> None:
         """Test parsing a direct version with pre-release."""
         specifier = version_specifier_from_str("1.0.0-beta.1")
         assert isinstance(specifier, DirectVersionSpecifier)
-        assert specifier.meets(LibraryVersion("1.0.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-beta.1")) is True
 
 
 class TestVersionSpecifierFromStrCaret:
@@ -640,7 +640,7 @@ class TestIntegrationScenarios:
         specifier = version_specifier_from_str("^1.2.3")
         available = ["1.0.0", "1.2.3", "1.5.0", "1.9.9", "2.0.0"]
         # Find latest that meets constraint
-        compatible = [v for v in available if specifier.meets(LibraryVersion(v))]
+        compatible = [v for v in available if specifier.satisfied_by(LibraryVersion(v))]
         assert "1.2.3" in compatible
         assert "1.5.0" in compatible
         assert "1.9.9" in compatible
@@ -651,7 +651,7 @@ class TestIntegrationScenarios:
         """Test scenario: >=1.0.0,<2.0.0 limits version range."""
         specifier = version_specifier_from_str(">=1.0.0,<2.0.0")
         available = ["0.9.0", "1.0.0", "1.5.0", "2.0.0", "2.1.0"]
-        compatible = [v for v in available if specifier.meets(LibraryVersion(v))]
+        compatible = [v for v in available if specifier.satisfied_by(LibraryVersion(v))]
         assert "1.0.0" in compatible
         assert "1.5.0" in compatible
         assert "0.9.0" not in compatible
@@ -661,11 +661,11 @@ class TestIntegrationScenarios:
     def test_prerelease_excluded_from_range_scenario(self) -> None:
         """Test scenario: >=1.2.3,<2.0.0 excludes 1.3.0-beta.1."""
         specifier = version_specifier_from_str(">=1.2.3,<2.0.0")
-        assert specifier.meets(LibraryVersion("1.3.0")) is True
-        assert specifier.meets(LibraryVersion("1.3.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.3.0-beta.1")) is True
 
     def test_direct_prerelease_included_scenario(self) -> None:
         """Test scenario: 1.0.0-beta.1 directly matches pre-release version."""
         specifier = version_specifier_from_str("1.0.0-beta.1")
-        assert specifier.meets(LibraryVersion("1.0.0-beta.1")) is True
-        assert specifier.meets(LibraryVersion("1.0.0")) is False
+        assert specifier.satisfied_by(LibraryVersion("1.0.0-beta.1")) is True
+        assert specifier.satisfied_by(LibraryVersion("1.0.0")) is False

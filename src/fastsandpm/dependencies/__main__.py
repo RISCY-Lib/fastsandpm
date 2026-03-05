@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 from fastsandpm.manifest import Manifest
+import pprint
 
 from .provider import resolve
 
@@ -39,4 +40,4 @@ if __name__ == "__main__":
     pkg_manifest = Manifest.model_validate(definition)
     print(pkg_manifest)
     print("")
-    print(resolve(pkg_manifest))
+    pprint.pprint(resolve(pkg_manifest))
