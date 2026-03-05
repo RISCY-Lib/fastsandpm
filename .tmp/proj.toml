@@ -1,7 +1,0 @@
-[package]
-name="tmp"
-version="0.0.1"
-description=""
-
-[dependencies]
-ahb_agent = {"git" = "https://github.com/RISCY-Lib/ahb_agent", branch = "main"}
