@@ -20,7 +20,40 @@
 
 This module provides wrapper functions around git commands for cloning,
 checking out, fetching, and querying git repositories. These utilities
-are used internally by the library controller to manage library dependencies.
+are used internally by FastSandPM to manage library dependencies from
+git-based sources.
+
+Repository Operations:
+    clone: Clone a repository from a remote URL.
+    checkout: Checkout a specific commit, branch, or tag.
+    fetch: Fetch updates from the remote repository.
+
+Repository State:
+    is_dirty: Check if a repository has uncommitted changes.
+    is_git_repo: Check if a path is a git repository.
+    get_head_commit: Get the HEAD commit hash.
+    get_current_branch: Get the current branch name.
+    get_tags_at_head: Get all tags pointing to HEAD.
+    get_remote_url: Get the URL of a remote.
+
+Remote Operations:
+    remote_exists: Check if a remote repository is accessible.
+    get_available_tags: Get all tags from a remote repository.
+    get_remote_refs: Get all refs grouped by commit hash (cached).
+    get_commit_for_ref: Get commit hash for a specific ref.
+    get_remote_file: Fetch a single file from a remote repository.
+
+URL Parsing:
+    parse_github_url: Parse GitHub URLs to extract owner/repo.
+    parse_gitlab_url: Parse GitLab URLs to extract host/project path.
+
+Hosting Provider APIs:
+    fetch_file_from_github: Fetch a file via GitHub raw content URL.
+    fetch_file_from_gitlab: Fetch a file via GitLab repository API.
+    fetch_file_from_hosting_api: Try fetching via supported hosting APIs.
+
+Note:
+    This module requires git to be installed and available in the system PATH.
 """
 
 from __future__ import annotations
@@ -122,16 +155,25 @@ def remote_exists(remote: str) -> bool:
 
 
 def get_available_tags(remote: str) -> list[str]:
-    """Get all available tags from a repository.
+    """Get all available tags from a remote repository.
+
+    Queries the remote repository using ``git ls-remote --tags`` and
+    parses the output to extract tag names. Annotated tag references
+    (ending with ``^{}``) are automatically filtered out.
 
     Args:
         remote: The URL of the remote repository.
 
     Returns:
-        List of tag names from the repository.
+        A list of tag names from the repository, without the ``refs/tags/`` prefix.
 
     Raises:
-        ValueError: If the remote repository cannot be found.
+        ValueError: If the remote repository cannot be accessed.
+
+    Example:
+        >>> tags = get_available_tags("https://github.com/owner/repo.git")
+        >>> print(tags)
+        ['v1.0.0', 'v1.1.0', 'v2.0.0']
     """
     proc = subprocess.run(
         ["git", "ls-remote", "--tags", remote],
@@ -220,13 +262,17 @@ def get_current_branch(repo: pathlib.Path) -> str | None:
 
 
 def get_tags_at_head(repo: pathlib.Path) -> list[str]:
-    """Get all tags pointing to HEAD commit.
+    """Get all tags pointing to the HEAD commit.
+
+    Useful for determining if the current checkout corresponds to a
+    tagged release.
 
     Args:
         repo: The path to the local git repository.
 
     Returns:
-        List of tag names pointing to HEAD.
+        A list of tag names pointing to HEAD. Returns an empty list if
+        no tags point to HEAD or if the command fails.
     """
     proc = subprocess.run(
         ["git", "tag", "--points-at", "HEAD"],
@@ -396,19 +442,28 @@ def get_commit_for_ref(remote: str, ref: str) -> str | None:
 
 
 def parse_github_url(remote: str) -> tuple[str, str] | None:
-    """Parse a GitHub remote URL to extract owner and repo name.
+    """Parse a GitHub remote URL to extract owner and repository name.
 
-    Supports various GitHub URL formats:
-    - https://github.com/owner/repo.git
-    - https://github.com/owner/repo
-    - git@github.com:owner/repo.git
-    - ssh://git@github.com/owner/repo.git
+    Supports various GitHub URL formats including HTTPS, SSH, and SSH URL schemes.
+
+    Supported formats:
+        - ``https://github.com/owner/repo.git``
+        - ``https://github.com/owner/repo``
+        - ``git@github.com:owner/repo.git``
+        - ``ssh://git@github.com/owner/repo.git``
 
     Args:
-        remote: The git remote URL.
+        remote: The git remote URL to parse.
 
     Returns:
-        A tuple of (owner, repo) if the URL is a GitHub URL, None otherwise.
+        A tuple of ``(owner, repo)`` if the URL is a GitHub URL,
+        or None if the URL doesn't match any supported GitHub format.
+
+    Example:
+        >>> parse_github_url("https://github.com/RISCY-Lib/fastsandpm.git")
+        ('RISCY-Lib', 'fastsandpm')
+        >>> parse_github_url("https://gitlab.com/user/repo.git")
+        None
     """
     # HTTPS format: https://github.com/owner/repo.git or https://github.com/owner/repo
     https_match = re.match(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", remote)
@@ -429,20 +484,30 @@ def parse_github_url(remote: str) -> tuple[str, str] | None:
 
 
 def parse_gitlab_url(remote: str) -> tuple[str, str] | None:
-    """Parse a GitLab remote URL to extract the project path.
+    """Parse a GitLab remote URL to extract host and project path.
 
-    Supports various GitLab URL formats:
-    - https://gitlab.com/owner/repo.git
-    - https://gitlab.com/group/subgroup/repo.git
-    - git@gitlab.com:owner/repo.git
-    - ssh://git@gitlab.com/owner/repo.git
+    Supports various GitLab URL formats including HTTPS, SSH, and SSH URL schemes.
+    Works with both gitlab.com and self-hosted GitLab instances.
+
+    Supported formats:
+        - ``https://gitlab.com/owner/repo.git``
+        - ``https://gitlab.com/group/subgroup/repo.git``
+        - ``git@gitlab.com:owner/repo.git``
+        - ``ssh://git@gitlab.com/owner/repo.git``
 
     Args:
-        remote: The git remote URL.
+        remote: The git remote URL to parse.
 
     Returns:
-        A tuple of (host, project_path) if the URL is a GitLab URL, None otherwise.
+        A tuple of ``(host, project_path)`` if the URL is a GitLab URL,
+        or None if the URL doesn't match any supported GitLab format.
         The project_path may contain slashes for nested groups.
+
+    Example:
+        >>> parse_gitlab_url("https://gitlab.com/group/subgroup/repo.git")
+        ('gitlab.com', 'group/subgroup/repo')
+        >>> parse_gitlab_url("https://github.com/user/repo.git")
+        None
     """
     # HTTPS format: https://gitlab.com/owner/repo.git or with subgroups
     https_match = re.match(r"https?://(gitlab\.[^/]+)/(.+?)(?:\.git)?/?$", remote)
@@ -465,14 +530,22 @@ def parse_gitlab_url(remote: str) -> tuple[str, str] | None:
 def fetch_file_from_github(owner: str, repo: str, commit: str, filepath: str) -> bytes | None:
     """Fetch a file from GitHub using the raw content URL.
 
+    Uses GitHub's raw.githubusercontent.com endpoint to fetch file contents
+    directly without requiring authentication for public repositories.
+
     Args:
-        owner: The repository owner.
+        owner: The repository owner (username or organization).
         repo: The repository name.
-        commit: The commit hash.
-        filepath: The path to the file in the repository.
+        commit: The commit hash, branch name, or tag to fetch from.
+        filepath: The path to the file within the repository.
 
     Returns:
-        The file contents as bytes, or None if fetching fails.
+        The file contents as bytes, or None if fetching fails due to
+        network errors, HTTP errors, or timeout.
+
+    Note:
+        This function has a 30-second timeout. Failed requests are logged
+        as warnings but do not raise exceptions.
     """
     url = f"https://raw.githubusercontent.com/{owner}/{repo}/{commit}/{filepath}"
     try:
@@ -489,14 +562,24 @@ def fetch_file_from_gitlab(
 ) -> bytes | None:
     """Fetch a file from GitLab using the repository files API.
 
+    Uses GitLab's v4 API to fetch file contents. Works with both gitlab.com
+    and self-hosted GitLab instances.
+
     Args:
-        host: The GitLab host (e.g., "gitlab.com").
-        project_path: The project path (e.g., "owner/repo" or "group/subgroup/repo").
-        commit: The commit hash.
-        filepath: The path to the file in the repository.
+        host: The GitLab host (e.g., "gitlab.com" or "gitlab.example.org").
+        project_path: The URL-encoded project path (e.g., "owner/repo"
+            or "group/subgroup/repo").
+        commit: The commit hash, branch name, or tag to fetch from.
+        filepath: The path to the file within the repository.
 
     Returns:
-        The file contents as bytes, or None if fetching fails.
+        The file contents as bytes, or None if fetching fails due to
+        network errors, HTTP errors, or timeout.
+
+    Note:
+        This function has a 30-second timeout. Failed requests are logged
+        as warnings but do not raise exceptions. The project_path and
+        filepath are automatically URL-encoded.
     """
     # URL-encode the project path (slashes become %2F)
     encoded_project = urllib.parse.quote(project_path, safe="")

@@ -16,6 +16,22 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
+"""CLI entry point for the dependencies module.
+
+This module provides a demonstration of the dependency resolution functionality.
+It can be run directly with `python -m fastsandpm.dependencies` to resolve
+dependencies for a sample manifest.
+
+Example:
+    To run the dependency resolution demo::
+
+        $ python -m fastsandpm.dependencies
+
+Note:
+    This module is primarily intended for development and testing purposes.
+    For production use, import the resolve function from the provider module.
+"""
+
 from __future__ import annotations
 
 import pprint
@@ -33,14 +49,15 @@ if __name__ == "__main__":
         "dependencies": {
             "ahb_agent": {"git": "RISCY-Lib", "version": "0.1.0"},
             "apb_agent": {"git": "https://github.com/RISCY-Lib/apb_agent", "branch": "test_branch"},
-            "local": {"path": "./.tmp"}
-        }
+            "local": {"path": "./.tmp"},
+        },
     }
 
     try:
         import os
 
         import certifi  # type: ignore[import-not-found]
+
         os.environ["SSL_CERT_FILE"] = certifi.where()
     except ImportError:
         pass

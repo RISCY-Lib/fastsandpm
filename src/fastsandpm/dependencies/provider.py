@@ -16,6 +16,22 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
+"""Dependency resolution provider for resolvelib integration.
+
+This module provides the FastSandProvider class that implements the resolvelib
+AbstractProvider interface. It handles candidate discovery, preference ordering,
+and dependency extraction during the resolution process.
+
+Classes:
+    FastSandProvider: The main dependency resolution provider.
+
+Functions:
+    resolve: Convenience function to resolve dependencies for a manifest.
+
+Type Aliases:
+    FastSandReqInfo: Type alias for requirement information tuples.
+    FastSandReporter: Type alias for the resolution reporter.
+"""
 
 from __future__ import annotations
 
@@ -46,10 +62,36 @@ FastSandReqInfo = RequirementInformation[ConcreteRequirement, Candidate]
 
 
 class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidate, str]):
+    """Dependency resolution provider implementing the resolvelib interface.
+
+    This provider handles the core dependency resolution logic, including
+    candidate discovery, preference ordering, and requirement satisfaction
+    checking. It uses the configured registries to find candidate packages.
+
+    Attributes:
+        _registries: The registries used for candidate discovery.
+    """
+
     def __init__(self, registries: Registries) -> None:
+        """Initialize the provider with the given registries.
+
+        Args:
+            registries: The registries to use for candidate discovery.
+        """
         self._registries = registries
 
     def identify(self, requirement_or_candidate: ConcreteRequirement | Candidate) -> str:
+        """Return the identifier for a requirement or candidate.
+
+        The identifier is used to group related requirements and candidates
+        during resolution.
+
+        Args:
+            requirement_or_candidate: The requirement or candidate to identify.
+
+        Returns:
+            The name of the package, which serves as its unique identifier.
+        """
         return requirement_or_candidate.name
 
     def get_preference(
@@ -118,12 +160,7 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
 
         has_upper_bound = any(_req_has_upper_bound(r) for r in info_reqs)
 
-        return (
-            not has_path_req,
-            not has_pinned,
-            not has_upper_bound,
-            identifier
-        )
+        return (not has_path_req, not has_pinned, not has_upper_bound, identifier)
 
     def find_matches(
         self,
@@ -179,10 +216,31 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
         return unique_candidates
 
     def is_satisfied_by(self, requirement: ConcreteRequirement, candidate: Candidate) -> bool:
+        """Check if a candidate satisfies a requirement.
+
+        Args:
+            requirement: The requirement to check.
+            candidate: The candidate to evaluate.
+
+        Returns:
+            True if the candidate satisfies the requirement, False otherwise.
+        """
         return candidate.satisfies(requirement)
 
     def get_dependencies(self, candidate: Candidate) -> list[ConcreteRequirement]:
-        """Get the dependencies of a candidate."""
+        """Get the dependencies declared by a candidate.
+
+        Retrieves the candidate's manifest and extracts its declared dependencies.
+        Also merges any registries declared in the candidate's manifest into the
+        provider's registry list.
+
+        Args:
+            candidate: The candidate to get dependencies for.
+
+        Returns:
+            A list of requirements declared as dependencies by the candidate.
+            Returns an empty list if the candidate has no manifest.
+        """
         if candidate_manifest := candidate.get_manifest():
             self._registries.root.extend(candidate_manifest.registries)
             return candidate_manifest.dependencies.root
@@ -196,6 +254,22 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
         information: Mapping[str, Iterator[FastSandReqInfo]],
         backtrack_causes: Sequence[FastSandReqInfo],
     ) -> list[str]:
+        """Narrow down which requirements to resolve next.
+
+        This method can be used to optimize the resolution order by filtering
+        or reordering the identifiers. Currently passes through to the base
+        implementation without modification.
+
+        Args:
+            identifiers: Iterable of requirement identifiers to consider.
+            resolutions: Mapping of already-resolved identifiers to candidates.
+            candidates: Mapping of identifiers to their candidate iterators.
+            information: Mapping of identifiers to requirement information.
+            backtrack_causes: Sequence of requirements that caused backtracking.
+
+        Returns:
+            A filtered/reordered list of identifiers to process next.
+        """
         return [
             req
             for req in super().narrow_requirement_selection(
@@ -208,6 +282,29 @@ FastSandReporter = resolvelib.BaseReporter[ConcreteRequirement, Candidate, str]
 
 
 def resolve(manifest: Manifest) -> dict[str, Candidate]:
+    """Resolve all dependencies for a manifest.
+
+    Creates a FastSandProvider with the manifest's registries and runs the
+    resolvelib resolver to find a compatible set of candidates for all
+    declared dependencies.
+
+    Args:
+        manifest: The manifest containing dependencies to resolve.
+
+    Returns:
+        A dictionary mapping package names to their resolved Candidate objects.
+
+    Raises:
+        resolvelib.ResolutionImpossible: If no compatible resolution exists.
+
+    Example:
+        >>> from fastsandpm import get_manifest
+        >>> from fastsandpm.dependencies.provider import resolve
+        >>> manifest = get_manifest("./my-project")
+        >>> resolved = resolve(manifest)
+        >>> for name, candidate in resolved.items():
+        ...     print(f"{name}: {candidate.version}")
+    """
     provider = FastSandProvider(manifest.registries)
     reporter: FastSandReporter = resolvelib.BaseReporter()
 

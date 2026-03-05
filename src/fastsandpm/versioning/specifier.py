@@ -16,24 +16,40 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""Module for handling semantic versioning and version range specifications.
+"""Version specifier classes for dependency constraints.
 
-This module provides classes and functions for parsing, comparing, and
-resolving semantic versions. It supports:
+This module provides classes for representing and evaluating version
+constraints used in dependency specifications. It supports various
+constraint formats commonly used in package managers.
 
-- Semantic versioning with major.minor.patch format (e.g., "1.2.3")
-- Optional pre-release identifiers (e.g., "1.2.3.alpha")
-- Version constraints with comparison operators (e.g., ">=1.0.0", "<2.0.0")
-- Version ranges combining multiple constraints (e.g., ">1.0.0,<2.0.0")
+Supported Specifier Formats:
+    - Direct: ``"1.0.0"`` (exact version match)
+    - Caret: ``"^1.2.3"`` (semver-compatible updates)
+    - Comparison: ``">=1.0.0"``, ``"<=2.0.0"``, ``">1.0.0"``, ``"<2.0.0"``
+    - Range: ``">=1.0.0,<2.0.0"`` (multiple constraints)
 
 Classes:
-    LibraryVersion: Represents and compares semantic versions.
-    VersionConstraint: Represents a single version constraint.
-    VersionRange: Represents a range of acceptable versions.
+    VersionSpecifier: Abstract base class for all specifiers.
+    DirectVersionSpecifier: Matches a single exact version.
+    CaretVersionSpecifier: Matches semver-compatible versions.
+    ComparisonVersionSpecifier: Matches using comparison operators.
+    RangeVersionSpecifier: Matches versions within a range.
 
 Functions:
-    is_version_range: Check if a string is a version range specification.
-    resolve_version_range: Find the best matching version from available options.
+    meets_constraints: Check if a version satisfies all constraints.
+    find_compatible_version: Find the latest compatible version.
+    version_specifier_from_str: Parse a specifier string into an object.
+
+Type Aliases:
+    ComparisonOperator: Literal type for valid comparison operators.
+
+Example:
+    >>> from fastsandpm.versioning.specifier import version_specifier_from_str
+    >>> spec = version_specifier_from_str("^1.2.0")
+    >>> spec.satisfied_by(LibraryVersion("1.5.0"))
+    True
+    >>> spec.satisfied_by(LibraryVersion("2.0.0"))
+    False
 """
 
 from __future__ import annotations
@@ -46,22 +62,44 @@ from .library_version import LibraryVersion
 
 
 class VersionSpecifier(ABC):
-    """Base class for version specifications."""
+    """Abstract base class for version specifications.
+
+    Version specifiers define constraints on acceptable versions. Subclasses
+    implement specific constraint types (exact match, comparison, range, etc.).
+
+    All specifiers must implement the ``satisfied_by`` method to check if
+    a given version meets the specification's constraints.
+    """
 
     @abstractmethod
     def satisfied_by(self, version: LibraryVersion) -> bool:
-        """Check if a version meets the specification.
+        """Check if a version satisfies this specification.
 
         Args:
-            version: The version to check.
+            version: The LibraryVersion to check against this specifier.
 
         Returns:
-            True if the version meets the specification, False otherwise.
+            True if the version satisfies all constraints defined by this
+            specifier, False otherwise.
         """
 
 
 class DirectVersionSpecifier(VersionSpecifier):
-    """Version specification that matches a single version."""
+    """Version specifier that matches a single exact version.
+
+    This specifier requires an exact match with the specified version.
+    Pre-release stages and numbers must also match exactly.
+
+    Attributes:
+        version: The exact version that must be matched.
+
+    Example:
+        >>> spec = DirectVersionSpecifier(LibraryVersion("1.2.3"))
+        >>> spec.satisfied_by(LibraryVersion("1.2.3"))
+        True
+        >>> spec.satisfied_by(LibraryVersion("1.2.4"))
+        False
+    """
 
     def __init__(self, version: LibraryVersion) -> None:
         """Initialize a DirectVersionSpecifier.
@@ -83,37 +121,65 @@ class DirectVersionSpecifier(VersionSpecifier):
         return self.version == version
 
     def __eq__(self, value: object) -> bool:
-        """Check for equality between this DirectVersionSpecifier and the object"""
+        """Check equality with another DirectVersionSpecifier.
+
+        Args:
+            value: The object to compare against.
+
+        Returns:
+            True if both specifiers match the same version, False otherwise.
+        """
         if not isinstance(value, DirectVersionSpecifier):
             return False
         return self.version == value.version
 
     def __repr__(self) -> str:
+        """Return the repr string (same as str)."""
         return str(self)
 
     def __str__(self) -> str:
-        """Return string representation of the specifier."""
+        """Return a human-readable string representation.
+
+        Returns:
+            A string like ``DirectVersionSpecifier(1.2.3)``.
+        """
         return f"DirectVersionSpecifier({self.version!s})"
 
     @classmethod
     def from_string(cls, value: str) -> Self:
-        """Create a DirectVersionSpecifier from string.
+        """Create a DirectVersionSpecifier from a version string.
+
+        Args:
+            value: A version string (e.g., "1.2.3").
 
         Returns:
-            The created specifier.
+            A new DirectVersionSpecifier for the parsed version.
 
         Raises:
-            ValueError: If the value can't be converted to a valid DirectVersionSpecifier
+            ValueError: If the string cannot be parsed as a valid version.
         """
         return cls(LibraryVersion(value.strip()))
 
 
 class CaretVersionSpecifier(VersionSpecifier):
-    """Version specification for caret requirements (^x.y.z).
+    """Version specifier for semver-compatible caret requirements (^x.y.z).
 
-    Caret requirements allow semver-compatible updates:
-    - ^1.2.3 allows >=1.2.3, <2.0.0
-    - ^0.2.3 allows >=0.2.3, <0.3.0 (0.x.x versions treat minor as breaking)
+    Caret requirements allow updates that do not modify the left-most
+    non-zero digit, following semantic versioning compatibility rules:
+
+    - ``^1.2.3`` allows ``>=1.2.3, <2.0.0``
+    - ``^0.2.3`` allows ``>=0.2.3, <0.3.0`` (0.x treats minor as breaking)
+    - ``^0.0.3`` allows ``>=0.0.3, <0.0.4`` (0.0.x treats patch as breaking)
+
+    Attributes:
+        version: The base version for the caret requirement.
+
+    Example:
+        >>> spec = CaretVersionSpecifier(LibraryVersion("1.2.0"))
+        >>> spec.satisfied_by(LibraryVersion("1.9.9"))
+        True
+        >>> spec.satisfied_by(LibraryVersion("2.0.0"))
+        False
     """
 
     def __init__(self, version: LibraryVersion) -> None:
@@ -150,27 +216,43 @@ class CaretVersionSpecifier(VersionSpecifier):
         return True
 
     def __eq__(self, value: object, /) -> bool:
-        """Check for equality between this DirectVersionSpecifier and the object"""
+        """Check equality with another CaretVersionSpecifier.
+
+        Args:
+            value: The object to compare against.
+
+        Returns:
+            True if both specifiers have the same base version, False otherwise.
+        """
         if not isinstance(value, CaretVersionSpecifier):
             return False
         return self.version == value.version
 
     def __repr__(self) -> str:
+        """Return the repr string (same as str)."""
         return str(self)
 
     def __str__(self) -> str:
-        """Return string representation of the specifier."""
+        """Return a human-readable string representation.
+
+        Returns:
+            A string like ``CaretVersionSpecifier(^1.2.3)``.
+        """
         return f"CaretVersionSpecifier(^{self.version!s})"
 
     @classmethod
     def from_string(cls, value: str) -> Self:
-        """Create a CaretVersionSpecifier from string.
+        """Create a CaretVersionSpecifier from a caret requirement string.
+
+        Args:
+            value: A caret requirement string (e.g., "^1.2.3").
 
         Returns:
-            The created specifier.
+            A new CaretVersionSpecifier for the parsed version.
 
         Raises:
-            ValueError: If the value can't be converted to a valid DirectVersionSpecifier
+            ValueError: If the string doesn't start with '^' or the version
+                is invalid.
         """
         if not value[0] == "^":
             raise ValueError(f"Cannot create CaretVersionSpecifier from string: {value}")
@@ -179,23 +261,35 @@ class CaretVersionSpecifier(VersionSpecifier):
 
 
 ComparisonOperator = Literal[">=", "<=", ">", "<"]
+"""Type alias for valid comparison operators."""
 
 
 class ComparisonVersionSpecifier(VersionSpecifier):
-    """Version specification for comparison requirements (>=, <=, >, <).
+    """Version specifier for comparison requirements (>=, <=, >, <).
+
+    Compares versions using a single comparison operator. Supports
+    greater-than, less-than, and their inclusive variants.
+
+    Example:
+        >>> spec = ComparisonVersionSpecifier(">=", LibraryVersion("1.0.0"))
+        >>> spec.satisfied_by(LibraryVersion("1.5.0"))
+        True
+        >>> spec.satisfied_by(LibraryVersion("0.9.0"))
+        False
     """
 
     VALID_OPERATORS: set[str] = {">=", "<=", ">", "<"}
+    """Valid comparison operator strings."""
 
     def __init__(self, operator: ComparisonOperator, version: LibraryVersion) -> None:
         """Initialize a ComparisonVersionSpecifier.
 
         Args:
-            operator: The comparison operator (>=, <=, >, <).
+            operator: The comparison operator (">=", "<=", ">", or "<").
             version: The version to compare against.
 
         Raises:
-            ValueError: If the operator is not valid.
+            ValueError: If the operator is not one of the valid operators.
         """
         if operator not in self.VALID_OPERATORS:
             raise ValueError(f"Invalid comparison operator: {operator}")
@@ -221,59 +315,98 @@ class ComparisonVersionSpecifier(VersionSpecifier):
             return version < self.version
 
     def __eq__(self, value: object, /) -> bool:
-        """Check for equality between this ComparisonVersionSpecifier and the value"""
+        """Check equality with another ComparisonVersionSpecifier.
+
+        Args:
+            value: The object to compare against.
+
+        Returns:
+            True if both specifiers have the same operator and version.
+        """
         if not isinstance(value, ComparisonVersionSpecifier):
             return False
 
         return self.operator == value.operator and self.version == value.version
 
     def __repr__(self) -> str:
+        """Return the repr string (same as str)."""
         return str(self)
 
     def __str__(self) -> str:
-        """Return string representation of the specifier."""
+        """Return a human-readable string representation.
+
+        Returns:
+            A string like ``ComparisonVersionSpecifier(>=1.2.3)``.
+        """
         return f"ComparisonVersionSpecifier({self.operator}{self.version!s})"
 
     @classmethod
     def from_string(cls, value: str) -> Self:
-        """Convert the string to a comparison version specifier"""
+        """Create a ComparisonVersionSpecifier from a comparison string.
+
+        Parses strings like ">=1.0.0" or "<2.0.0" into specifier objects.
+
+        Args:
+            value: A comparison requirement string (e.g., ">=1.2.3").
+
+        Returns:
+            A new ComparisonVersionSpecifier with the parsed operator and version.
+
+        Raises:
+            ValueError: If the string doesn't start with a valid operator
+                or the version is invalid.
+        """
         # Check longer operators first to avoid matching '<' when '<=' is intended
         for op in sorted(cls.VALID_OPERATORS, key=len, reverse=True):
             if value.startswith(op):
-                version_str = value[len(op):].strip()
+                version_str = value[len(op) :].strip()
                 return cls(op, LibraryVersion(version_str))  # type: ignore[arg-type]
 
         raise ValueError(f"Invalid comparison version specifier: {value}")
 
 
 class RangeVersionSpecifier(VersionSpecifier):
-    """Version specification for range requirements (e.g., >=1.0.0,<2.0.0).
+    """Version specifier for range requirements (e.g., >=1.0.0,<2.0.0).
 
-    Combines multiple comparison constraints. A version must satisfy all
-    constraints to meet the specification.
+    Combines exactly two comparison constraints. A version must satisfy both
+    constraints to meet the specification. Typically used to specify a minimum
+    and maximum version bound.
+
+    Example:
+        >>> spec = RangeVersionSpecifier.from_string(">=1.0.0,<2.0.0")
+        >>> spec.satisfied_by(LibraryVersion("1.5.0"))
+        True
+        >>> spec.satisfied_by(LibraryVersion("2.0.0"))
+        False
     """
 
     def __init__(self, c1: ComparisonVersionSpecifier, c2: ComparisonVersionSpecifier) -> None:
-        """Initialize a RangeVersionSpecifier from a range string.
+        """Initialize a RangeVersionSpecifier with two comparison constraints.
 
         Args:
-            range_str: A comma-separated string of comparison requirements
-                       (e.g., ">=1.0.0,<2.0.0").
-
-        Raises:
-            ValueError: If the range string is invalid.
+            c1: The first comparison constraint.
+            c2: The second comparison constraint.
         """
         self.constraints: tuple[ComparisonVersionSpecifier, ComparisonVersionSpecifier] = (c1, c2)
+        """A tuple of two ComparisonVersionSpecifier objects."""
 
     @classmethod
     def from_string(cls, range_str: str) -> Self:
-        """Parse a range string into individual comparison constraints.
+        """Create a RangeVersionSpecifier from a comma-separated range string.
+
+        Parses strings like ">=1.0.0,<2.0.0" into a specifier with two
+        comparison constraints.
 
         Args:
-            range_str: A comma-separated string of comparison requirements.
+            range_str: A comma-separated string containing exactly two
+                comparison requirements (e.g., ">=1.0.0,<2.0.0").
+
+        Returns:
+            A new RangeVersionSpecifier with the parsed constraints.
 
         Raises:
-            ValueError: If a constraint in the range is invalid.
+            ValueError: If the string doesn't contain exactly two constraints
+                or if any constraint is invalid.
         """
         # Split by comma and strip whitespace
         parts = [p.strip() for p in range_str.split(",")]
@@ -302,17 +435,29 @@ class RangeVersionSpecifier(VersionSpecifier):
         return all(constraint.satisfied_by(version) for constraint in self.constraints)
 
     def __eq__(self, value: object, /) -> bool:
-        """Check for equality between this RangeVersionSpecifier and the value"""
+        """Check equality with another RangeVersionSpecifier.
+
+        Args:
+            value: The object to compare against.
+
+        Returns:
+            True if both specifiers have the same constraints, False otherwise.
+        """
         if not isinstance(value, RangeVersionSpecifier):
             return False
 
         return self.constraints == value.constraints
 
     def __repr__(self) -> str:
+        """Return the repr string (same as str)."""
         return str(self)
 
     def __str__(self) -> str:
-        """Return string representation of the specifier."""
+        """Return a human-readable string representation.
+
+        Returns:
+            A string like ``RangeVersionSpecifier(>=1.0.0,<2.0.0)``.
+        """
         range_str = ",".join(f"{c.operator}{c.version}" for c in self.constraints)
         return f"RangeVersionSpecifier({range_str})"
 

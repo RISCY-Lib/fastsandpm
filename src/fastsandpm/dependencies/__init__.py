@@ -16,6 +16,27 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
+"""Dependency resolution subpackage for FastSandPM.
+
+This subpackage provides the core dependency resolution functionality,
+including requirement definitions, candidate generation, and resolution
+algorithms.
+
+Modules:
+    requirements: Defines requirement types for different dependency sources.
+    candidates: Implements candidate generation from requirements.
+    provider: Provides the dependency resolution provider for resolvelib.
+
+Classes:
+    ConcreteRequirement: Union type of all concrete requirement types.
+    GitRequirement: Base class for git-based requirements.
+    BranchGitRequirement: Git requirement pinned to a specific branch.
+    CommitGitRequirement: Git requirement pinned to a specific commit.
+    TaggedGitRequirement: Git requirement pinned to a specific tag.
+    VersionedGitRequirement: Git requirement with version constraints.
+    PackageIndexRequirement: Requirement from a package index.
+    PathRequirement: Requirement from a local filesystem path.
+"""
 
 from __future__ import annotations
 

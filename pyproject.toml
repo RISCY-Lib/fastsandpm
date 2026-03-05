@@ -129,7 +129,7 @@ preview = true
 
 [tool.tox]
 env_list = [
-    "py12", "py13", "py14",
+    "py312", "py313", "py314",
     "style",
     "typing",
     "docs_dirhtml",
@@ -137,11 +137,11 @@ env_list = [
 
 [tool.tox.env_run_base]
 description = "pytest on latest dependency versions"
-runner = "uv-venv-lock-runner"
+runner = "uv-venv-runner"
 package = "wheel"
 wheel_build_env = ".pkg"
 constrain_package_deps = true
-use_frozen_constraints = true
+#use_frozen_constraints = true
 dependency_groups = ["tests"]
 
 commands = [[

@@ -16,9 +16,40 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""A package management and dependency resolution tool for HDL Design and DV projects
+"""A package management and dependency resolution tool for HDL Design and DV projects.
 
-This package provides tools for managing RTL and Design Verification projects for HDL projects
+FastSandPM provides tools for managing RTL and Design Verification projects,
+including semantic versioning, dependency resolution, and manifest file handling.
+
+Main Features:
+    - Parse and validate proj.toml manifest files
+    - Resolve dependencies from git repositories, package indices, and local paths
+    - Support for semantic versioning with pre-release identifiers
+    - Registry-based dependency discovery (GitHub, GitLab, Bitbucket, custom)
+
+Quick Start:
+    >>> import fastsandpm
+    >>> manifest = fastsandpm.get_manifest("./my-project")
+    >>> print(manifest.package.name)
+    'my-package'
+
+Classes:
+    Manifest: The main manifest model representing a proj.toml file.
+    Package: Package metadata (name, version, description, authors).
+    ManifestNotFoundError: Raised when a manifest file cannot be found.
+    ManifestParseError: Raised when a manifest file cannot be parsed.
+
+Functions:
+    get_manifest: Load and parse a manifest from a repository path.
+
+Attributes:
+    __version__: The current version of the FastSandPM package.
+    __author__: The primary author of the package.
+
+See Also:
+    - fastsandpm.dependencies: Dependency resolution subpackage
+    - fastsandpm.versioning: Version handling subpackage
+    - fastsandpm.registries: Registry definitions
 """
 
 from __future__ import annotations

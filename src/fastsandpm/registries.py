@@ -16,12 +16,20 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""Module which contains the types for the package manifest.
+"""Module for package registry definitions and management.
 
-This module provides:
-- Manifest: The main manifest model representing a proj.toml file
-- Package: The package metadata section of the manifest
-- get_manifest: Function to load and parse a manifest from a repository path
+This module provides registry types for resolving package dependencies from
+various sources including git hosts, package indices, and local paths.
+
+Classes:
+    DependencyNotFoundError: Exception raised when a dependency cannot be found.
+    GitRegistry: Registry for resolving dependencies from git hosts.
+    PackageIndexRegistery: Registry for resolving dependencies from package indices.
+    PathRegistry: Registry for resolving dependencies from local filesystem paths.
+    Registries: Collection of registries used during dependency resolution.
+
+Type Aliases:
+    ConcreteRegistry: Union type of all concrete registry types.
 """
 
 from __future__ import annotations
@@ -33,7 +41,11 @@ from pydantic import BaseModel, RootModel, model_validator
 
 
 class DependencyNotFoundError(RuntimeError):
-    pass
+    """Exception raised when a dependency cannot be found in any registry.
+
+    This error is raised during dependency resolution when a required package
+    cannot be located in any of the configured registries.
+    """
 
 
 class GitRegistry(BaseModel):

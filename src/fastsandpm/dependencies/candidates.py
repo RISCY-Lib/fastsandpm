@@ -16,6 +16,21 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
+"""Candidate generation for dependency resolution.
+
+This module provides classes representing dependency candidates and factory
+functions to generate candidates from requirements. Candidates represent
+concrete versions of dependencies that can satisfy requirements.
+
+Classes:
+    Candidate: Abstract base class for all candidate types.
+    PackageIndexCandidate: Candidate from a package index registry.
+    PathCandidate: Candidate from a local filesystem path.
+    GitCandidate: Candidate from a git repository.
+
+Functions:
+    candidate_factory: Singledispatch function to create candidates from requirements.
+"""
 
 from __future__ import annotations
 
@@ -46,23 +61,40 @@ from fastsandpm.versioning.specifier import VersionSpecifier
 
 @dataclass(frozen=True)
 class Candidate(ABC):
-    """A candidate in a dependency resolution process."""
+    """Abstract base class for dependency resolution candidates.
+
+    A candidate represents a concrete version of a dependency that can potentially
+    satisfy one or more requirements. During dependency resolution, candidates are
+    generated from requirements and evaluated for compatibility.
+    """
 
     name: str
-    """The name of the dependency."""
+    """The name of the dependency package."""
 
     version: LibraryVersion | None
-    """The library version that this candidate corresponds to (if it corresponds to one)"""
+    """The semantic version of this candidate, or None if not versioned."""
 
     @abstractmethod
     def get_manifest(self) -> Manifest | None:
-        """Return the manifest for this candidate"""
+        """Retrieve the manifest for this candidate.
+
+        Returns:
+            The parsed Manifest object for this candidate, or None if no manifest
+            exists or cannot be retrieved.
+        """
 
     def satisfies(self, requirement: ConcreteRequirement) -> bool:
-        """A candidate is considered to satisfy the requirement under the following conditions:
+        """Check if this candidate satisfies the given requirement.
 
+        A candidate satisfies a requirement when:
         - The requirement name and candidate name match
-        - If the requirement spcifies a version, the version of the candidate matches
+        - If the requirement specifies a version, the candidate's version matches
+
+        Args:
+            requirement: The requirement to check against.
+
+        Returns:
+            True if this candidate satisfies the requirement, False otherwise.
         """
         if (
             version := getattr(requirement, "version", None)
@@ -76,40 +108,77 @@ class Candidate(ABC):
 
 @dataclass(frozen=True)
 class PackageIndexCandidate(Candidate):
-    """A candidate from a Package Index"""
+    """A candidate from a package index registry.
+
+    Package index candidates are resolved from package registries like JFrog
+    Artifactory. This implementation is currently a placeholder as package
+    index registries are not yet fully implemented.
+
+    Note:
+        Package index registry support is under development.
+    """
 
     def get_manifest(self) -> Manifest | None:
-        """Return the manifest for this candidate"""
+        """Retrieve the manifest for this package index candidate.
+
+        Returns:
+            The parsed Manifest object, or None. Currently always returns None
+            as package index registries are not yet implemented.
+        """
         # Note Package Index registries are not yet implemented
         pass
 
     def satisfies(self, requirement: ConcreteRequirement) -> bool:
+        """Check if this candidate satisfies the given requirement.
+
+        Args:
+            requirement: The requirement to check against.
+
+        Returns:
+            True if this candidate satisfies the requirement, False otherwise.
+        """
         return super().satisfies(requirement)
 
 
 @dataclass(frozen=True)
 class PathCandidate(Candidate):
-    """A candidate from a path on disk"""
+    """A candidate from a local filesystem path.
+
+    Path candidates represent dependencies available at a local directory.
+    They are useful for monorepo setups or local development where
+    dependencies are checked out alongside the main project.
+    """
 
     path: pathlib.Path
-    """The abosolute resolved path to the candidate"""
+    """The absolute resolved path to the candidate directory."""
 
     def get_manifest(self) -> Manifest | None:
-        """Get the manifest from the candidate's path"""
+        """Retrieve the manifest from the candidate's local path.
+
+        Returns:
+            The parsed Manifest object if a proj.toml file exists at the path,
+            or None if no manifest file is found.
+        """
         if self.path.joinpath(MANIFEST_FILENAME).exists():
             return get_manifest(self.path)
         return None
 
     def satisfies(self, requirement: ConcreteRequirement) -> bool:
-        """A path candidate is considered to satisfy the requirement under the following conditions:
+        """Check if this path candidate satisfies the given requirement.
 
-        - The requirement name and candidate name match
-        - If the requirement spcifies a version, the version of the candidate matches
-        - If the requirement is a package index registry, and the version of the candidate matches
-        - If the requirement is a path index registry and the path of the candidate ends with the
-          path of the requirement
-        - If the requirement is a git repo and the candidate points to a git repo, and the git repo
-          HEAD complies with the requirement
+        A path candidate satisfies a requirement when the requirement name
+        and candidate name match, and type-specific conditions are met:
+
+        * For PackageIndexRequirement: the candidate's version matches the specifier
+        * For PathRequirement: the candidate path ends with the requirement path
+        * For Git requirements: the path is a git repo and HEAD complies with
+          the requirement's constraints (commit, branch, tag, or version)
+
+        Args:
+            requirement: The requirement to check against.
+
+        Returns:
+            True if this candidate satisfies the requirement, False otherwise.
         """
         if not super().satisfies(requirement):
             return False
@@ -122,7 +191,7 @@ class PathCandidate(Candidate):
             req_parts = requirement.path.parts
             cand_parts = self.path.parts
             if len(req_parts) <= len(cand_parts):
-                return cand_parts[-len(req_parts):] == req_parts
+                return cand_parts[-len(req_parts) :] == req_parts
             return False
 
         # Handle Git requirements: check if candidate points to a git repo
@@ -222,28 +291,32 @@ def _fetch_git_manifest_cached(remote: str, commit_hash: str) -> Manifest | None
 
 @dataclass(frozen=True)
 class GitCandidate(Candidate):
-    """A candidate from a Git Repo"""
+    """A candidate from a git repository.
+
+    Git candidates represent dependencies available from remote git repositories.
+    They are identified by a commit hash and include metadata about corresponding
+    branches and tags for that commit.
+    """
 
     remote: str
-    """The fully qualified URL to the git repo which the candidate comes from"""
+    """The fully qualified URL to the git repository."""
 
     commit_hash: str
-    """The commit hash the GitCandidate corresponds to"""
+    """The full SHA commit hash this candidate corresponds to."""
 
     corresponding_heads: frozenset[str]
-    """Set of corresponding git head references that this candidate's commit hash corresponds to"""
+    """Set of branch names pointing to this commit."""
 
     corresponding_tags: frozenset[str]
-    """Set of corresponding git tag references that this candidate's commit hash corresponds to"""
+    """Set of tag names pointing to this commit."""
 
     def get_manifest(self) -> Manifest | None:
-        """Return the manifest for this candidate.
+        """Retrieve the manifest for this git candidate.
 
         Results are cached by (remote, commit_hash) to avoid repeated network calls
         during dependency resolution. First attempts to fetch only the manifest file
-        using `git archive`, which is significantly faster than a full clone. If
-        `git archive --remote` is not supported by the remote server (e.g., GitHub),
-        falls back to a full clone.
+        using the hosting provider's API (GitHub/GitLab), which is significantly
+        faster than a full clone. If that fails, falls back to a full clone.
 
         Returns:
             The parsed Manifest object, or None if no manifest exists or fetching fails.
@@ -251,15 +324,23 @@ class GitCandidate(Candidate):
         return _fetch_git_manifest_cached(self.remote, self.commit_hash)
 
     def satisfies(self, requirement: ConcreteRequirement) -> bool:
-        """A git candidate is considered to satisfy the requirement under the following conditions:
+        """Check if this git candidate satisfies the given requirement.
 
+        A git candidate satisfies a requirement when:
         - The requirement name and candidate name match
-        - If the requirement spcifies a version, the version of the candidate matches
-        - If the requirement is a package index requirement and the requirement doesn't specify an
-          index to use.
-        - If the requirement is not a path candidate.
-        - If the requirement is a git repo and the candidate points to a git repo, and the git repo
-          HEAD complies with the requirement
+        - If the requirement specifies a version, the candidate's version matches
+        - For PackageIndexRequirement: only if no specific index is required
+        - PathRequirement: never satisfied by git candidates
+        - For CommitGitRequirement: commit hash matches (prefix match allowed)
+        - For BranchGitRequirement: candidate's heads include the required branch
+        - For TaggedGitRequirement: candidate's tags include the required tag
+        - For VersionedGitRequirement: any tag satisfies the version constraint
+
+        Args:
+            requirement: The requirement to check against.
+
+        Returns:
+            True if this candidate satisfies the requirement, False otherwise.
         """
         if not super().satisfies(requirement):
             return False
@@ -306,7 +387,23 @@ class GitCandidate(Candidate):
 def candidate_factory(
     req: ConcreteRequirement, registries: Registries
 ) -> Generator[Candidate, None, None]:
-    """Creates as many candidates as possible from the requirement and yields them."""
+    """Generate candidates from a requirement using available registries.
+
+    This is a singledispatch function that dispatches to specialized implementations
+    based on the requirement type. Each implementation generates zero or more
+    candidates that could potentially satisfy the requirement.
+
+    Args:
+        req: The requirement to generate candidates for.
+        registries: The available registries to search for candidates.
+
+    Yields:
+        Candidate objects that could satisfy the requirement.
+
+    Note:
+        The base implementation yields no candidates. Specialized implementations
+        are registered for each concrete requirement type.
+    """
     yield from []
 
 
@@ -314,9 +411,18 @@ def candidate_factory(
 def _package_index_candidate_factory(
     req: PackageIndexRequirement, registries: Registries
 ) -> Generator[PackageIndexCandidate, None, None]:
-    """Create a candidate from a package index requirement.
+    """Generate candidates from a package index requirement.
 
-    Package Indecies are not yet implemented
+    Args:
+        req: The package index requirement to generate candidates for.
+        registries: The available registries to search for candidates.
+
+    Yields:
+        PackageIndexCandidate objects matching the requirement.
+
+    Note:
+        Package index registries are not yet implemented, so this currently
+        yields no candidates.
     """
     yield from []
 
@@ -325,10 +431,17 @@ def _package_index_candidate_factory(
 def _path_candidate_factory(
     req: PathRequirement, registries: Registries
 ) -> Generator[PathCandidate, None, None]:
-    """Create a candidate from a path requirement.
+    """Generate candidates from a path requirement.
 
-    If the requirement uses an abosolute path then directly use it.
-    Otherwise, go through the registries to find a matched path for any regsitry where match exists.
+    For absolute paths, uses the path directly. For relative paths, searches
+    through available path registries to find matching directories.
+
+    Args:
+        req: The path requirement to generate candidates for.
+        registries: The available registries to search for candidates.
+
+    Yields:
+        PathCandidate objects for each matching path found.
     """
     # If the requirement path is absolute, use it directly
     if req.path.is_absolute():
@@ -381,13 +494,25 @@ def _path_candidate_factory(
 def _git_candidate_factory(
     req: GitRequirement, registries: Registries
 ) -> Generator[GitCandidate, None, None]:
-    """Create a set of candidates from a git requirement.
+    """Generate candidates from a git requirement.
 
-    If the requirement uses a concreteURL then use that URL as the remote.
-    Otherwise, look through the registries to find a matching remote.
+    If the requirement has a fully qualified remote URL, uses that directly.
+    Otherwise, constructs potential remote URLs by combining the requirement's
+    git identifier with available git registries.
 
-    Once the remote is found, create a candidate for each commit hash that meets the requirement
-    specifications and yield them.
+    For each accessible remote, creates candidates based on the requirement type:
+    - CommitGitRequirement: candidates matching the commit prefix
+    - BranchGitRequirement: candidates on the specified branch
+    - TaggedGitRequirement: candidates with the specified tag
+    - VersionedGitRequirement: candidates with tags satisfying the version
+    - Base GitRequirement: candidates on main/master branch
+
+    Args:
+        req: The git requirement to generate candidates for.
+        registries: The available registries to search for candidates.
+
+    Yields:
+        GitCandidate objects for each matching ref found in the repository.
     """
     remotes_to_try: list[str] = []
 
@@ -521,13 +646,17 @@ def _create_git_candidates_from_refs(
 
 
 def _extract_version_from_tags(tags: AbstractSet[str]) -> LibraryVersion | None:
-    """Extract the highest version from a set of tags.
+    """Extract the highest semantic version from a set of git tags.
+
+    Parses each tag as a potential version string (stripping 'v' or 'V' prefix)
+    and returns the highest valid semantic version found.
 
     Args:
-        tags: Set or frozenset of tag names.
+        tags: Set or frozenset of git tag names.
 
     Returns:
-        The highest LibraryVersion found, or None if no valid versions.
+        The highest LibraryVersion found among valid version tags,
+        or None if no tags can be parsed as valid versions.
     """
     versions: list[LibraryVersion] = []
     for tag in tags:

@@ -16,17 +16,32 @@
 # License along with this library; if not, see
 # <https://www.gnu.org/licenses/>.
 ####################################################################################################
-"""Module for handling semantic versions.
+"""Semantic version representation and comparison.
 
-This module provides classes and functions for parsing, comparing, and
-resolving semantic versions. It supports:
+This module provides the LibraryVersion class for parsing, representing, and
+comparing semantic versions. Versions follow the semantic versioning specification
+with optional pre-release identifiers.
 
-- Semantic versioning with major.minor.patch format (e.g., "1.2.3")
-- Optional pre-release identifiers (e.g., "1.2.3.alpha", "1.2.3-rc1")
+Supported Version Formats:
+    - Standard: ``major.minor.patch`` (e.g., "1.2.3")
+    - Pre-release with dash: ``major.minor.patch-pre`` (e.g., "1.2.3-alpha")
+    - Pre-release with dot: ``major.minor.patch.pre`` (e.g., "1.2.3.rc1")
+    - Pre-release abbreviated: ``major.minor.patchpre`` (e.g., "1.2.3b2")
+
+Pre-release Stages (in order):
+    - alpha (a): Development/testing phase
+    - beta (b): Feature-complete but may have bugs
+    - rc (release-candidate): Ready for release
 
 Classes:
     PreReleaseStage: Enum for pre-release stages.
     LibraryVersion: Represents and compares semantic versions.
+
+Example:
+    >>> v1 = LibraryVersion("1.2.3")
+    >>> v2 = LibraryVersion("1.2.3-alpha")
+    >>> v1 > v2  # Release versions are greater than pre-release
+    True
 """
 
 from __future__ import annotations
@@ -38,11 +53,24 @@ from typing import overload
 
 
 class PreReleaseStage(Enum):
-    """Enum representing pre-release stages in semantic versioning."""
+    """Enum representing pre-release stages in semantic versioning.
+
+    Pre-release stages indicate the maturity level of a version before
+    its official release. They are ordered from least to most mature:
+    ALPHA < BETA < RELEASE_CANDIDATE.
+
+    Example:
+        >>> stage = PreReleaseStage.from_string("rc")
+        >>> stage
+        <PreReleaseStage.RELEASE_CANDIDATE: 'rc'>
+    """
 
     ALPHA = "alpha"
+    """Early development/testing phase."""
     BETA = "beta"
+    """Feature-complete but may contain bugs."""
     RELEASE_CANDIDATE = "rc"
+    """Ready for release."""
 
     @classmethod
     def from_string(cls, value: str) -> PreReleaseStage | None:
@@ -155,7 +183,7 @@ class LibraryVersion:
         minor: int | None = None,
         patch: int | None = None,
         pre_stage: PreReleaseStage | str | None = None,
-        pre: int | None = None
+        pre: int | None = None,
     ):  # type: ignore[no-untyped-def]
         """Initialize a LibraryVersion instance.
 
@@ -166,8 +194,13 @@ class LibraryVersion:
             ValueError: If the version string format is invalid.
         """
         if version is not None:
-            if major is not None or minor is not None or patch is not None or \
-                    pre_stage is not None or pre is not None:
+            if (
+                major is not None
+                or minor is not None
+                or patch is not None
+                or pre_stage is not None
+                or pre is not None
+            ):
                 raise ValueError(
                     "Cannot specify version string along with other version components"
                 )
@@ -233,8 +266,13 @@ class LibraryVersion:
     def _get_pre_for_comparison(self) -> tuple[int, int] | None:
         """Get a normalized pre-release tuple for comparison.
 
-        Returns a tuple of (stage_order, pre_number) or None if no pre-release.
-        The stage_order ensures alpha < beta < rc ordering.
+        Converts the pre-release stage and number into a comparable tuple
+        that maintains the correct ordering (alpha < beta < rc).
+
+        Returns:
+            A tuple of ``(stage_order, pre_number)`` where stage_order is
+            0 for alpha, 1 for beta, 2 for rc. Returns None if this version
+            has no pre-release identifier.
         """
         if self.pre_stage is None:
             return None
