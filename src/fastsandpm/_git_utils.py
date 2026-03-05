@@ -25,8 +25,16 @@ are used internally by the library controller to manage library dependencies.
 
 from __future__ import annotations
 
+import logging
 import pathlib
+import re
 import subprocess
+import urllib.error
+import urllib.parse
+import urllib.request
+from functools import lru_cache
+
+_logger = logging.getLogger(__name__)
 
 
 def clone(remote: str, dest: pathlib.Path) -> None:
@@ -258,21 +266,34 @@ def get_remote_url(repo: pathlib.Path, remote_name: str = "origin") -> str | Non
 def get_remote_file(remote: str, treeish: str, path: str) -> bytes:
     """Get a file from a remote repository.
 
+    Uses `git archive` to fetch a single file from a remote repository without
+    cloning the entire repository. This is significantly faster than a full clone
+    when only a single file is needed.
+
+    Note:
+        This function requires the remote git server to support `git archive --remote`.
+        Some hosting services (notably GitHub) do not support this protocol.
+        For those services, a full clone or HTTP API fallback may be necessary.
+
     Args:
         remote: The remote repository URL.
-        treeish: The commit, branch, or tag get the file from.
+        treeish: The commit, branch, or tag to get the file from.
         path: The path of the file in the repository.
 
     Returns:
-        The contents of the file.
+        The contents of the file as bytes.
 
     Raises:
         ValueError: If the file cannot be fetched from the remote repository.
     """
+    if file := fetch_file_from_hosting_api(remote, treeish, path):
+        return file
+
+    # Use shell=True to enable piping between git archive and tar
     proc = subprocess.run(
-        f"git archive --remote={remote} {treeish} {path} | tar xO",
-        stderr=subprocess.STDOUT,
-        stdout=subprocess.PIPE,
+        f"git archive --remote={remote} {treeish} -- {path} | tar -xO",
+        shell=True,
+        capture_output=True,
     )
 
     if proc.returncode != 0:
@@ -281,14 +302,19 @@ def get_remote_file(remote: str, treeish: str, path: str) -> bytes:
     return proc.stdout
 
 
-def get_remote_refs(remote: str) -> dict[str, tuple[set[str], set[str]]]:
+@lru_cache(maxsize=128)
+def get_remote_refs(remote: str) -> dict[str, tuple[frozenset[str], frozenset[str]]]:
     """Get all refs (branches and tags) from a remote repository grouped by commit hash.
+
+    Results are cached to avoid repeated network calls to the same remote during
+    dependency resolution. Use `get_remote_refs.cache_clear()` to invalidate the cache.
 
     Args:
         remote: The URL of the remote repository.
 
     Returns:
-        A dictionary mapping commit hashes to tuples of (branches, tags) that point to that commit.
+        A dictionary mapping commit hashes to tuples of (branches, tags) that point to
+        that commit. Uses frozensets for hashability/cacheability.
 
     Raises:
         ValueError: If the remote repository cannot be accessed.
@@ -303,6 +329,7 @@ def get_remote_refs(remote: str) -> dict[str, tuple[set[str], set[str]]]:
         raise ValueError(f"Could not access remote {remote}")
 
     # Maps commit_hash -> (set of branches, set of tags)
+    # Use mutable sets during construction, convert to frozensets at the end
     refs: dict[str, tuple[set[str], set[str]]] = {}
 
     for line in proc.stdout.decode("utf-8").split("\n"):
@@ -331,7 +358,10 @@ def get_remote_refs(remote: str) -> dict[str, tuple[set[str], set[str]]]:
             tag_name = ref[10:]  # Remove 'refs/tags/' prefix
             tags.add(tag_name)
 
-    return refs
+    # Convert to frozensets for immutability and cacheability
+    return {
+        commit: (frozenset(branches), frozenset(tags)) for commit, (branches, tags) in refs.items()
+    }
 
 
 def get_commit_for_ref(remote: str, ref: str) -> str | None:
@@ -362,4 +392,152 @@ def get_commit_for_ref(remote: str, ref: str) -> str | None:
     if parts:
         return parts[0]
 
+    return None
+
+
+def parse_github_url(remote: str) -> tuple[str, str] | None:
+    """Parse a GitHub remote URL to extract owner and repo name.
+
+    Supports various GitHub URL formats:
+    - https://github.com/owner/repo.git
+    - https://github.com/owner/repo
+    - git@github.com:owner/repo.git
+    - ssh://git@github.com/owner/repo.git
+
+    Args:
+        remote: The git remote URL.
+
+    Returns:
+        A tuple of (owner, repo) if the URL is a GitHub URL, None otherwise.
+    """
+    # HTTPS format: https://github.com/owner/repo.git or https://github.com/owner/repo
+    https_match = re.match(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", remote)
+    if https_match:
+        return (https_match.group(1), https_match.group(2))
+
+    # SSH format: git@github.com:owner/repo.git
+    ssh_match = re.match(r"git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$", remote)
+    if ssh_match:
+        return (ssh_match.group(1), ssh_match.group(2))
+
+    # SSH URL format: ssh://git@github.com/owner/repo.git
+    ssh_url_match = re.match(r"ssh://git@github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", remote)
+    if ssh_url_match:
+        return (ssh_url_match.group(1), ssh_url_match.group(2))
+
+    return None
+
+
+def parse_gitlab_url(remote: str) -> tuple[str, str] | None:
+    """Parse a GitLab remote URL to extract the project path.
+
+    Supports various GitLab URL formats:
+    - https://gitlab.com/owner/repo.git
+    - https://gitlab.com/group/subgroup/repo.git
+    - git@gitlab.com:owner/repo.git
+    - ssh://git@gitlab.com/owner/repo.git
+
+    Args:
+        remote: The git remote URL.
+
+    Returns:
+        A tuple of (host, project_path) if the URL is a GitLab URL, None otherwise.
+        The project_path may contain slashes for nested groups.
+    """
+    # HTTPS format: https://gitlab.com/owner/repo.git or with subgroups
+    https_match = re.match(r"https?://(gitlab\.[^/]+)/(.+?)(?:\.git)?/?$", remote)
+    if https_match:
+        return (https_match.group(1), https_match.group(2))
+
+    # SSH format: git@gitlab.com:owner/repo.git
+    ssh_match = re.match(r"git@(gitlab\.[^:]+):(.+?)(?:\.git)?$", remote)
+    if ssh_match:
+        return (ssh_match.group(1), ssh_match.group(2))
+
+    # SSH URL format: ssh://git@gitlab.com/owner/repo.git
+    ssh_url_match = re.match(r"ssh://git@(gitlab\.[^/]+)/(.+?)(?:\.git)?/?$", remote)
+    if ssh_url_match:
+        return (ssh_url_match.group(1), ssh_url_match.group(2))
+
+    return None
+
+
+def fetch_file_from_github(owner: str, repo: str, commit: str, filepath: str) -> bytes | None:
+    """Fetch a file from GitHub using the raw content URL.
+
+    Args:
+        owner: The repository owner.
+        repo: The repository name.
+        commit: The commit hash.
+        filepath: The path to the file in the repository.
+
+    Returns:
+        The file contents as bytes, or None if fetching fails.
+    """
+    url = f"https://raw.githubusercontent.com/{owner}/{repo}/{commit}/{filepath}"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            result: bytes = response.read()
+            return result
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+        _logger.warning(f"Failed to fetch file from GitHub ({url}): {e}")
+        return None
+
+
+def fetch_file_from_gitlab(
+    host: str, project_path: str, commit: str, filepath: str
+) -> bytes | None:
+    """Fetch a file from GitLab using the repository files API.
+
+    Args:
+        host: The GitLab host (e.g., "gitlab.com").
+        project_path: The project path (e.g., "owner/repo" or "group/subgroup/repo").
+        commit: The commit hash.
+        filepath: The path to the file in the repository.
+
+    Returns:
+        The file contents as bytes, or None if fetching fails.
+    """
+    # URL-encode the project path (slashes become %2F)
+    encoded_project = urllib.parse.quote(project_path, safe="")
+    # URL-encode the filepath
+    encoded_filepath = urllib.parse.quote(filepath, safe="")
+    url = f"https://{host}/api/v4/projects/{encoded_project}/repository/files/{encoded_filepath}/raw?ref={commit}"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as response:
+            result: bytes = response.read()
+            return result
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+        _logger.warning(f"Failed to fetch file from GitLab ({url}): {e}")
+        return None
+
+
+def fetch_file_from_hosting_api(remote: str, commit: str, filepath: str) -> bytes | None:
+    """Try to fetch a file from a remote repository using hosting provider REST APIs.
+
+    This is faster than a full git clone as it only fetches the single file needed.
+    Supports GitHub and GitLab.
+
+    Args:
+        remote: The git remote URL.
+        commit: The commit hash to fetch from.
+        filepath: The path to the file in the repository.
+
+    Returns:
+        The file contents as bytes, or None if fetching fails or
+        the hosting provider is not supported.
+    """
+    # Try GitHub
+    github_info = parse_github_url(remote)
+    if github_info:
+        owner, repo = github_info
+        return fetch_file_from_github(owner, repo, commit, filepath)
+
+    # Try GitLab
+    gitlab_info = parse_gitlab_url(remote)
+    if gitlab_info:
+        host, project_path = gitlab_info
+        return fetch_file_from_gitlab(host, project_path, commit, filepath)
+
+    # Unsupported hosting provider
     return None

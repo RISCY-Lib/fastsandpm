@@ -42,6 +42,7 @@ from fastsandpm.manifest import (
     ManifestNotFoundError,
     ManifestParseError,
     get_manifest,
+    get_manifest_from_bytes,
 )
 from fastsandpm.versioning.library_version import LibraryVersion
 from fastsandpm.versioning.specifier import CaretVersionSpecifier, DirectVersionSpecifier
@@ -216,9 +217,9 @@ local_utils = {path = "./local_utils"}
         manifest = get_manifest(tmp_path)
 
         assert len(manifest.dependencies) == 4
-        assert len([
-            d for d in manifest.dependencies if isinstance(d, PackageIndexRequirement)
-        ]) == 2
+        assert (
+            len([d for d in manifest.dependencies if isinstance(d, PackageIndexRequirement)]) == 2
+        )
         assert len([d for d in manifest.dependencies if isinstance(d, GitRequirement)]) == 1
         assert len([d for d in manifest.dependencies if isinstance(d, PathRequirement)]) == 1
 
@@ -437,3 +438,104 @@ description = "Testing top-level import"
     def test_manifest_class_accessible_from_top_level(self) -> None:
         """Test that Manifest class is accessible from fastsandpm module."""
         assert fastsandpm.Manifest is Manifest
+
+
+class TestGetManifestFromBytes:
+    """Tests for get_manifest_from_bytes function.
+
+    This function parses manifest content from raw bytes, which is useful
+    for parsing manifests fetched from remote sources without writing to disk.
+    """
+
+    def test_get_manifest_from_bytes_minimal(self) -> None:
+        """Test parsing a minimal valid manifest from bytes."""
+        content = b"""
+[package]
+name = "test-package"
+version = "1.0.0"
+description = "A test package"
+"""
+        manifest = get_manifest_from_bytes(content)
+
+        assert isinstance(manifest, Manifest)
+        assert manifest.package.name == "test-package"
+        assert str(manifest.package.version) == "1.0.0"
+        assert manifest.package.description == "A test package"
+
+    def test_get_manifest_from_bytes_with_dependencies(self) -> None:
+        """Test parsing manifest with dependencies from bytes."""
+        content = b"""
+[package]
+name = "with-deps"
+version = "2.0.0"
+description = "Package with dependencies"
+
+[dependencies]
+dep1 = "1.0.0"
+dep2 = "^2.0.0"
+"""
+        manifest = get_manifest_from_bytes(content)
+
+        assert len(manifest.dependencies) == 2
+        dep1 = manifest.dependencies.get_by_name("dep1")
+        assert dep1 is not None
+        assert dep1.name == "dep1"
+
+    def test_get_manifest_from_bytes_with_source_identifier(self) -> None:
+        """Test that source identifier is used in error messages."""
+        content = b"""
+[package]
+name = "broken"
+# Missing version
+"""
+        with pytest.raises(ManifestParseError) as exc_info:
+            get_manifest_from_bytes(content, source="example.com/repo@abc123")
+
+        assert "example.com/repo@abc123" in str(exc_info.value)
+
+    def test_get_manifest_from_bytes_invalid_toml(self) -> None:
+        """Test that ManifestParseError is raised for invalid TOML bytes."""
+        content = b"""
+[package
+name = "broken"
+"""
+        with pytest.raises(ManifestParseError) as exc_info:
+            get_manifest_from_bytes(content)
+
+        assert "Invalid TOML syntax" in str(exc_info.value)
+
+    def test_get_manifest_from_bytes_invalid_utf8(self) -> None:
+        """Test that ManifestParseError is raised for invalid UTF-8 bytes."""
+        # Invalid UTF-8 sequence
+        content = b'\xff\xfe[package]\nname = "test"'
+
+        with pytest.raises(ManifestParseError) as exc_info:
+            get_manifest_from_bytes(content)
+
+        assert "Invalid TOML syntax" in str(exc_info.value)
+
+    def test_get_manifest_from_bytes_empty_content(self) -> None:
+        """Test that ManifestParseError is raised for empty content."""
+        content = b""
+
+        with pytest.raises(ManifestParseError):
+            get_manifest_from_bytes(content)
+
+    def test_get_manifest_from_bytes_with_git_dependencies(self) -> None:
+        """Test parsing manifest with git dependencies from bytes."""
+        content = b"""
+[package]
+name = "git-deps-pkg"
+version = "1.0.0"
+description = "Package with git dependencies"
+
+[dependencies]
+git_dep = {git = "https://github.com/org/repo.git", branch = "main"}
+"""
+        manifest = get_manifest_from_bytes(content)
+
+        assert len(manifest.dependencies) == 1
+        git_dep = manifest.dependencies.get_by_name("git_dep")
+        assert git_dep is not None
+        assert isinstance(git_dep, BranchGitRequirement)
+        assert git_dep.branch == "main"

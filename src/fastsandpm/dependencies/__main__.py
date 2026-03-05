@@ -18,10 +18,10 @@
 ####################################################################################################
 from __future__ import annotations
 
-from fastsandpm.manifest import Manifest
 import pprint
 
-from .provider import resolve
+from fastsandpm.dependencies.provider import resolve
+from fastsandpm.manifest import Manifest
 
 if __name__ == "__main__":
     definition = {
@@ -37,7 +37,14 @@ if __name__ == "__main__":
         }
     }
 
+    try:
+        import certifi
+        import os
+        os.environ["SSL_CERT_FILE"] = certifi.where()
+    except ImportError:
+        pass
+
     pkg_manifest = Manifest.model_validate(definition)
-    print(pkg_manifest)
+    pprint.pprint(pkg_manifest)
     print("")
     pprint.pprint(resolve(pkg_manifest))

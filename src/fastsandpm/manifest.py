@@ -241,9 +241,7 @@ class Dependencies(RootModel[list[ConcreteRequirement]]):
         """
         self.root.insert(index, object)
 
-    def get_by_name(
-        self, name: str
-    ) -> ConcreteRequirement | None:
+    def get_by_name(self, name: str) -> ConcreteRequirement | None:
         """Get a dependency by its name.
 
         Args:
@@ -277,9 +275,7 @@ class Manifest(BaseModel):
 
     dependencies: Dependencies = Field(default_factory=lambda: Dependencies(list()))
     """The package dependencies found in the 'dependencies' section of the manifest."""
-    optional_dependencies: dict[str, Dependencies] = (
-        Field(default_factory=dict)
-    )
+    optional_dependencies: dict[str, Dependencies] = Field(default_factory=dict)
     """The package optional dependencies found in the 'optional_dependencies'
     section of the manifest.
     """
@@ -390,3 +386,39 @@ def get_manifest(path: os.PathLike) -> Manifest:
         return Manifest.model_validate(data)
     except ValidationError as e:
         raise ManifestParseError(path, str(e)) from e
+
+
+def get_manifest_from_bytes(content: bytes, source: str = "<bytes>") -> Manifest:
+    """Parse a manifest from raw bytes content.
+
+    This function is useful for parsing manifest content that has been fetched
+    from a remote source (e.g., via `git archive`) without writing to disk.
+
+    Args:
+        content: The raw bytes content of a proj.toml file.
+        source: A string identifying the source of the content (for error messages).
+
+    Returns:
+        The parsed Manifest object.
+
+    Raises:
+        ManifestParseError: If the TOML content is malformed or doesn't match
+            the expected manifest schema.
+
+    Example:
+        >>> content = b'[package]\\nname = "my-pkg"\\nversion = "1.0.0"\\n...'
+        >>> manifest = get_manifest_from_bytes(content, source="git://repo")
+        >>> print(manifest.package.name)
+        'my-pkg'
+    """
+    # Parse the TOML content
+    try:
+        data = tomllib.loads(content.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
+        raise ManifestParseError(pathlib.Path(source), f"Invalid TOML syntax: {e}") from e
+
+    # Parse the data into a Manifest object
+    try:
+        return Manifest.model_validate(data)
+    except ValidationError as e:
+        raise ManifestParseError(pathlib.Path(source), str(e)) from e

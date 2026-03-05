@@ -20,8 +20,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping, Sequence
-from functools import wraps
-from types import FunctionType
 from typing import TYPE_CHECKING
 
 import resolvelib
@@ -40,31 +38,13 @@ if TYPE_CHECKING:
 FastSandReqInfo = RequirementInformation[ConcreteRequirement, Candidate]
 
 
-def print_func(f: FunctionType):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        print(f"{f.__name__}(")
-        for idx, val in enumerate(args[1:]):
-            print(f"\targs[{idx}]={val}")
-        for k, val in kwargs.items():
-            print(f"\t{k}={val}")
-
-        rval = f(*args, **kwargs)
-
-        print(f") -> {rval}\n")
-        return rval
-    return wrapper
-
-
 class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidate, str]):
     def __init__(self, registries: Registries) -> None:
         self._registries = registries
 
-    @print_func
     def identify(self, requirement_or_candidate: ConcreteRequirement | Candidate) -> str:
         return requirement_or_candidate.name
 
-    @print_func
     def get_preference(
         self,
         identifier: str,
@@ -98,7 +78,6 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
         """
         return identifier
 
-    @print_func
     def find_matches(
         self,
         identifier: str,
@@ -152,11 +131,9 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
 
         return unique_candidates
 
-    @print_func
     def is_satisfied_by(self, requirement: ConcreteRequirement, candidate: Candidate) -> bool:
         return candidate.satisfies(requirement)
 
-    @print_func
     def get_dependencies(self, candidate: Candidate) -> list[ConcreteRequirement]:
         """Get the dependencies of a candidate."""
         if candidate_manifest := candidate.get_manifest():
@@ -164,7 +141,6 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
             return candidate_manifest.dependencies.root
         return []
 
-    @print_func
     def narrow_requirement_selection(
         self,
         identifiers: Iterable[str],

@@ -23,8 +23,9 @@ import pathlib
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Generator
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
-from functools import singledispatch
+from functools import lru_cache, singledispatch
 
 from fastsandpm import _git_utils
 from fastsandpm.dependencies.requirements import (
@@ -37,7 +38,7 @@ from fastsandpm.dependencies.requirements import (
     TaggedGitRequirement,
     VersionedGitRequirement,
 )
-from fastsandpm.manifest import MANIFEST_FILENAME, Manifest, get_manifest
+from fastsandpm.manifest import MANIFEST_FILENAME, Manifest, get_manifest, get_manifest_from_bytes
 from fastsandpm.registries import Registries
 from fastsandpm.versioning.library_version import LibraryVersion
 from fastsandpm.versioning.specifier import VersionSpecifier
@@ -169,6 +170,56 @@ class PathCandidate(Candidate):
         return True
 
 
+# Sentinel value to distinguish "no manifest found" from "not yet cached"
+_NO_MANIFEST: Manifest = None  # type: ignore[assignment]
+
+
+@lru_cache(maxsize=256)
+def _fetch_git_manifest_cached(remote: str, commit_hash: str) -> Manifest | None:
+    """Fetch and cache a manifest from a git remote.
+
+    Results are cached by (remote, commit_hash) to avoid repeated network calls
+    during dependency resolution. Use `_fetch_git_manifest_cached.cache_clear()`
+    to invalidate the cache.
+
+    The function tries multiple methods in order of speed:
+    1. git archive --remote (fastest, but not supported by GitHub)
+    2. Hosting provider REST API (GitHub/GitLab raw file endpoints)
+    3. Full git clone (slowest, but works with any git host)
+
+    Args:
+        remote: The fully qualified URL to the git repository.
+        commit_hash: The commit hash to fetch the manifest from.
+
+    Returns:
+        The parsed Manifest object, or None if no manifest exists or fetching fails.
+    """
+    # First, try the fast path: fetch only proj.toml using git archive or hosting provider API
+    try:
+        content = _git_utils.get_remote_file(remote, commit_hash, MANIFEST_FILENAME)
+        return get_manifest_from_bytes(content, source=f"{remote}@{commit_hash}")
+    except ValueError:
+        # git archive --remote is not supported by this host (e.g., GitHub)
+        # or the file doesn't exist. Try hosting provider API next.
+        pass
+
+    # Fallback: full clone (slower but works with all git hosts)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        repo_path = pathlib.Path(tmpdir) / "repo"
+        try:
+            _git_utils.clone(remote, repo_path)
+            _git_utils.checkout(commit_hash, repo_path)
+        except Exception:
+            # If cloning or checkout fails, return None
+            return None
+
+        # Check if manifest file exists
+        if not repo_path.joinpath(MANIFEST_FILENAME).exists():
+            return None
+
+        return get_manifest(repo_path)
+
+
 @dataclass(frozen=True)
 class GitCandidate(Candidate):
     """A candidate from a Git Repo"""
@@ -188,23 +239,16 @@ class GitCandidate(Candidate):
     def get_manifest(self) -> Manifest | None:
         """Return the manifest for this candidate.
 
-        Clones the candidate's git repo to a temporary directory and checks for a ``proj.toml``.
-        If found, returns the manifest from the ``proj.toml``.
+        Results are cached by (remote, commit_hash) to avoid repeated network calls
+        during dependency resolution. First attempts to fetch only the manifest file
+        using `git archive`, which is significantly faster than a full clone. If
+        `git archive --remote` is not supported by the remote server (e.g., GitHub),
+        falls back to a full clone.
+
+        Returns:
+            The parsed Manifest object, or None if no manifest exists or fetching fails.
         """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            repo_path = pathlib.Path(tmpdir) / "repo"
-            try:
-                _git_utils.clone(self.remote, repo_path)
-                _git_utils.checkout(self.commit_hash, repo_path)
-            except Exception:
-                # If cloning or checkout fails, return None
-                return None
-
-            # Check if manifest file exists
-            if not repo_path.joinpath(MANIFEST_FILENAME).exists():
-                return None
-
-            return get_manifest(repo_path)
+        return _fetch_git_manifest_cached(self.remote, self.commit_hash)
 
     def satisfies(self, requirement: ConcreteRequirement) -> bool:
         """A git candidate is considered to satisfy the requirement under the following conditions:
@@ -263,7 +307,6 @@ def candidate_factory(
     req: ConcreteRequirement, registries: Registries
 ) -> Generator[Candidate, None, None]:
     """Creates as many candidates as possible from the requirement and yields them."""
-    breakpoint()
     yield from []
 
 
@@ -350,7 +393,10 @@ def _git_candidate_factory(
 
     # If the requirement has a fully qualified remote URL, use it directly
     if req.has_qualified_remote():
-        remotes_to_try.append(req.git)
+        if not req.git.endswith(".git"):
+            remotes_to_try.append(req.git + ".git")
+        else:
+            remotes_to_try.append(req.git)
     else:
         # Otherwise, build potential remotes from git registries
         for registry in registries.git_registries():
@@ -378,7 +424,7 @@ def _git_candidate_factory(
 def _create_git_candidates_from_refs(
     req: GitRequirement,
     remote: str,
-    refs: dict[str, tuple[set[str], set[str]]],
+    refs: dict[str, tuple[frozenset[str], frozenset[str]]],
 ) -> Generator[GitCandidate, None, None]:
     """Create GitCandidate objects from remote refs based on the requirement type.
 
@@ -474,11 +520,11 @@ def _create_git_candidates_from_refs(
             return  # Only yield one candidate for base GitRequirement
 
 
-def _extract_version_from_tags(tags: set[str]) -> LibraryVersion | None:
+def _extract_version_from_tags(tags: AbstractSet[str]) -> LibraryVersion | None:
     """Extract the highest version from a set of tags.
 
     Args:
-        tags: Set of tag names.
+        tags: Set or frozenset of tag names.
 
     Returns:
         The highest LibraryVersion found, or None if no valid versions.
