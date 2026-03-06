@@ -89,7 +89,6 @@ jobs:
         '${{ github.ref_name }}'
         --repo '${{ github.repository }}'
         --notes ""
-        GITHUB_TOKEN: ${{ github.token }}
     - name: Upload artifact signatures to GitHub Release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
