@@ -24,7 +24,7 @@ build-backend = "uv_build"
 
 [project]
 name = "FastSandPM"
-version = "0.1.0b5"
+version = "0.1.0b6"
 description = """FastSandPM is a a package management and dependency resolution tool for HDL Design and DV projects"""
 readme = "README.md"
 authors = [
