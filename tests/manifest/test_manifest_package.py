@@ -157,11 +157,10 @@ class TestPackageDescription:
     According to the documentation, description is a short summary treated as plain-text.
     """
 
-    def test_description_is_required(self) -> None:
+    def test_description_is_optional(self) -> None:
         """Test that description field is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            Package(name="test-package", version="1.0.0")  # type: ignore[call-arg]
-        assert "description" in str(exc_info.value)
+        package = Package(name="test-package", version="1.0.0")  # type: ignore[call-arg]
+        assert package.description == ""
 
     def test_description_accepts_plain_text(self) -> None:
         """Test that description accepts a plain text string."""

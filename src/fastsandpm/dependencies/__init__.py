@@ -36,10 +36,26 @@ Classes:
     VersionedGitRequirement: Git requirement with version constraints.
     PackageIndexRequirement: Requirement from a package index.
     PathRequirement: Requirement from a local filesystem path.
+    Candidate: Abstract base class for dependency candidates.
+    PackageIndexCandidate: Candidate from a package index registry.
+    PathCandidate: Candidate from a local filesystem path.
+    GitCandidate: Candidate from a git repository.
+
+Functions:
+    candidate_factory: Singledispatch function to create candidates from requirements.
+    resolve: Resolve all dependencies for a manifest.
 """
 
 from __future__ import annotations
 
+from .candidates import (
+    Candidate,
+    GitCandidate,
+    PackageIndexCandidate,
+    PathCandidate,
+    candidate_factory,
+)
+from .provider import resolve
 from .requirements import (
     BranchGitRequirement,
     CommitGitRequirement,
@@ -60,4 +76,10 @@ __all__ = [
     "VersionedGitRequirement",
     "PackageIndexRequirement",
     "PathRequirement",
+    "Candidate",
+    "PackageIndexCandidate",
+    "PathCandidate",
+    "GitCandidate",
+    "candidate_factory",
+    "resolve",
 ]

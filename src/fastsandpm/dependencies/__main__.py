@@ -47,8 +47,8 @@ if __name__ == "__main__":
             "description": "",
         },
         "dependencies": {
-            "ahb_agent": {"git": "RISCY-Lib", "version": "0.1.0"},
             "apb_agent": {"git": "https://github.com/RISCY-Lib/apb_agent", "branch": "test_branch"},
+            "ahb_agent": {"git": "RISCY-Lib", "version": "0.1.0"},
             "local": {"path": "./.tmp"},
         },
     }
