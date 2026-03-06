@@ -62,13 +62,17 @@ class TestPackageName:
         package = Package(name="package123", version="1.0.0", description="A test package")
         assert package.name == "package123"
 
-    def test_name_accepts_empty_string(self) -> None:
-        """Test that name currently accepts an empty string.
+    def test_name_rejects_empty_string(self) -> None:
+        """Test that name field rejects empty strings."""
+        with pytest.raises(ValidationError) as exc_info:
+            Package(name="", version="1.0.0", description="A test package")
+        assert "cannot be empty" in str(exc_info.value).lower()
 
-        Note: This documents current behavior. Future validation may reject empty names.
-        """
-        package = Package(name="", version="1.0.0", description="A test package")
-        assert package.name == ""
+    def test_name_rejects_whitespace_only(self) -> None:
+        """Test that name field rejects whitespace-only strings."""
+        with pytest.raises(ValidationError) as exc_info:
+            Package(name="   ", version="1.0.0", description="A test package")
+        assert "cannot be empty" in str(exc_info.value).lower()
 
 
 class TestPackageVersion:

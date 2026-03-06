@@ -31,21 +31,21 @@ For example you can specify a dependency named ``time`` and version ``1.0.0`` as
     time = "1.0.0"
 
 The version string is a known as a :ref:`version specifier <version_specifier>`.
-These specifiers can be used to set a range of valid versions used for resolving dpendencies.
+These specifiers can be used to set a range of valid versions used for resolving dependencies.
 
 
 Dependencies from Other Registries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 It is also possible to point to a different index using the ``index`` key in the dependency.
-For example you can specify a dependency named ``time`` and version ``1.0.0`` as follows:
+For example you can specify a dependency named ``time`` and version ``1.0.0`` from a custom registry as follows:
 
 .. code-block:: TOML
 
     [dependencies]
-    time = {registry = "my-registry", version = "1.0.0"}
+    time = {index = "my-registry", version = "1.0.0"}
 
-The value of ``registry`` points to a regsiter definition from the ``[registries]`` section. of the manifest.
+The value of ``index`` points to a registry definition from the ``[registries]`` section of the manifest.
 See the :ref:`registries section documentation <registries_section>` for more information.
 
 
@@ -77,7 +77,7 @@ By default the upstream default branch will be used.
 .. note::
 
    If when the dependencies are updated the existing local copy is dirty an error will be raised.
-   A user of the library can force the update by setting the ``force_update`` flag to ``true`` or ignore the error by settign ``ignore_dirty`` to ``true``.
+   A user of the library can force the update by setting the ``force_update`` flag to ``true`` or ignore the error by setting ``ignore_dirty`` to ``true``.
 
 
 Git Commit & Tag Specifiers
