@@ -24,27 +24,68 @@ Quick Start
 
 Installation:
 
-.. code-block:: bash
+```bash
+# For UV Based projects
+uv add fastsandpm
 
-   # For UV Based projects
-   uv add fastsandpm
+# For pip-based projects
+pip install fastsandpm
+```
 
-   # For pip-based projects
-   pip install fastsandpm
+### Command Line Usage
 
-Basic Usage:
+The simplest way to use FastSandPM is via the `fspm` command:
 
-    >>> import pathlib
-    >>> import fastsandpm
-    >>> manifest = fastsandpm.get_manifest("./my-project")
-    >>> print(manifest.package.name)
-    'my-package'
-    >>> resolved = fastsandpm.dependencies.resolve(manifest)
-    >>> print(type(resolved))
-    <class 'dict'>
-    >>> build_library(resolved, pathlib.Path("my-library"))
+```bash
+# Install dependencies from proj.toml in current or parent directory
+fspm
+
+# Install from a specific manifest file
+fspm --manifest /path/to/proj.toml
+
+# Install to a custom output directory
+fspm --output ./vendor
+
+# Install with optional dependency groups
+fspm --optional dev,test
+
+# Clean conflicting directories during installation
+fspm --clean
+```
+
+#### CLI Options
+
+| Option | Description |
+|--------|-------------|
+| `-m, --manifest PATH` | Path to manifest file or directory (default: search up tree for `proj.toml`) |
+| `-o, --output PATH` | Output directory for installed libraries (default: `./lib`) |
+| `-c, --clean` | Clean conflicting directories during installation |
+| `--no-clean` | Don't clean conflicting directories (default) |
+| `--optional GROUPS` | Comma-separated list of optional dependency groups |
+| `-v, --verbose` | Increase verbosity (can stack: `-v`, `-vv`, `-vvv`) |
+| `-q, --quiet` | Suppress all output except errors |
+| `-V, --version` | Show version and exit |
+
+### Python API Usage
+
+```python
+import pathlib
+import fastsandpm
+
+# Load a manifest
+manifest = fastsandpm.get_manifest("./my-project")
+print(manifest.package.name)
+# 'my-package'
+
+# Resolve dependencies
+resolved = fastsandpm.dependencies.resolve(manifest)
+
+# Build the library
+fastsandpm.build_library(resolved, pathlib.Path("my-library"))
+```
 
 This will bring in the library dependencies for a project into the specified directory.
-Additionally, a 'dependencies.f' file will be created which will point to the dependencies file list in the required order.
+Additionally, a `library.f` file will be created which will point to the dependencies
+file list in the required order.
 
 For more examples, see [the docs](https://fastsandpm.readthedocs.io/en/latest/usage_guide/index.html) for details.

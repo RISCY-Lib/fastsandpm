@@ -20,9 +20,45 @@ Or with pip:
    pip install fastsandpm
 
 
-Basic Usage
------------
+Command Line Interface
+----------------------
 
-.. NOTE::
+FastSandPM provides the ``fspm`` command for quick dependency management:
 
-   TODO: Work in progress
+.. code-block:: bash
+
+   # Install dependencies from proj.toml
+   fspm
+
+   # Install to a custom directory
+   fspm --output ./vendor
+
+   # Install with optional dependencies
+   fspm --optional dev,test
+
+See :doc:`cli` for the complete CLI reference.
+
+Python API
+----------
+
+For programmatic usage, fastsandpm provides a Python API:
+
+.. code-block:: python
+
+   import pathlib
+   import fastsandpm
+
+   # Load a manifest
+   manifest = fastsandpm.get_manifest("./my-project")
+
+   # Resolve dependencies
+   resolved = fastsandpm.dependencies.resolve(manifest)
+
+   # Build the library
+   fastsandpm.build_library(resolved, pathlib.Path("lib"))
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents
+
+   cli

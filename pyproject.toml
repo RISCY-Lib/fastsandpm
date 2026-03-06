@@ -75,6 +75,9 @@ typing=[
     "types-pyyaml>=6.0.12.20250516",
 ]
 
+[project.scripts]
+fspm = "fastsandpm.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/RISC-Lib/fastsandpm"
 Documentation = "https://fastsandpm.readthedocs.io/en/latest/index.html"
