@@ -192,6 +192,12 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         Parsed arguments namespace.
     """
     parser = create_parser()
+    try:
+        import argcomplete  # type: ignore
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
     return parser.parse_args(args)
 
 
