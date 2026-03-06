@@ -31,7 +31,24 @@ Installation:
    # For pip-based projects
    pip install fastsandpm
 
-Basic Usage:
+Command Line Usage:
+
+The simplest way to use FastSandPM is via the ``fspm`` command:
+
+.. code-block:: bash
+
+   # Install dependencies from proj.toml in current or parent directory
+   fspm
+
+   # Install to a custom directory
+   fspm --output ./vendor
+
+   # Install with optional dependency groups
+   fspm --optional dev,test
+
+See :doc:`usage_guide/cli` for the complete CLI reference.
+
+Python API Usage:
 
     >>> import pathlib
     >>> import fastsandpm
@@ -41,10 +58,11 @@ Basic Usage:
     >>> resolved = fastsandpm.dependencies.resolve(manifest)
     >>> print(type(resolved))
     <class 'dict'>
-    >>> build_library(resolved, pathlib.Path("my-library"))
+    >>> fastsandpm.build_library(resolved, pathlib.Path("my-library"))
 
 This will bring in the library dependencies for a project into the specified directory.
-Additionally, a 'dependencies.f' file will be created which will point to the dependencies file list in the required order.
+Additionally, a ``library.f`` file will be created which will point to the dependencies
+file list in the required order.
 
 For more examples, see the :doc:`usage_guide/index`.
 
