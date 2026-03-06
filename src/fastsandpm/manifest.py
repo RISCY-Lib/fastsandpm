@@ -58,6 +58,7 @@ from pydantic import (
     RootModel,
     ValidationError,
     WithJsonSchema,
+    field_validator,
     model_validator,
 )
 
@@ -139,6 +140,24 @@ class Package(BaseModel):
     """Package authors (string, list, or dict format)."""
     readme: pathlib.Path | None = None  # TODO: Field(default_factory=_find_readme)
     """Path to the README file relative to manifest."""
+
+    @field_validator("name")
+    @classmethod
+    def validate_name_not_empty(cls, v: str) -> str:
+        """Validate that package name is not empty.
+
+        Args:
+            v: The package name to validate.
+
+        Returns:
+            The validated package name.
+
+        Raises:
+            ValueError: If the name is empty or contains only whitespace.
+        """
+        if not v or not v.strip():
+            raise ValueError("Package name cannot be empty or whitespace-only")
+        return v
 
 
 class Dependencies(RootModel[list[ConcreteRequirement]]):
