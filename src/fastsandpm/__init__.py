@@ -55,6 +55,10 @@ See Also:
 from __future__ import annotations
 
 from fastsandpm import _info
+from fastsandpm.dependencies import (
+    resolve,
+)
+from fastsandpm.install import build_library, library_from_manifest
 from fastsandpm.manifest import (
     Manifest,
     ManifestNotFoundError,
@@ -74,4 +78,7 @@ __all__ = [
     "ManifestNotFoundError",
     "ManifestParseError",
     "Package",
+    "resolve",
+    "library_from_manifest",
+    "build_library",
 ]

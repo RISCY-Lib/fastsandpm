@@ -127,8 +127,13 @@ class Package(BaseModel):
     """The unique package identifier."""
     version: _Version
     """The semantic version of the package."""
-    description: str
+    description: str = ""
     """A brief description of the package."""
+
+    flist: pathlib.Path = Field(
+        default_factory=lambda data: pathlib.Path(data.get("name", "") + ".f")
+    )
+    """Path to the packages File-List relative to manifest."""
 
     authors: str | list[str] | dict[str, str] | None = None
     """Package authors (string, list, or dict format)."""
