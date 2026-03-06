@@ -1,6 +1,7 @@
 .. fastsandpm documentation master file
 
 fastsandpm Documentation
+
 ===========================================
 
 An RTL Design and DV package manager for python tools. Manage your RTL and
@@ -32,19 +33,15 @@ Installation:
 
 Basic Usage:
 
-.. code-block:: python
-
-   import pathlib
-   import fastsandpm
-
-   # Get the manifest of the current project
-   manifest = fastsandpm.get_manifest(pathlib.Path("some/repo/path"))
-
-   # Resolve the libraries
-   deps = fastsandpm.resolve_dependencies(manifest.dependencies, manifest.optional_dependencies["dev"])
-
-   # Update the libraries
-   fastsandpm.update_deps(libraries, pathlib.Path("some/library/.path"))
+    >>> import pathlib
+    >>> import fastsandpm
+    >>> manifest = fastsandpm.get_manifest("./my-project")
+    >>> print(manifest.package.name)
+    'my-package'
+    >>> resolved = fastsandpm.dependencies.resolve(manifest)
+    >>> print(type(resolved))
+    <class 'dict'>
+    >>> build_library(resolved, pathlib.Path("my-library"))
 
 This will bring in the library dependencies for a project into the specified directory.
 Additionally, a 'dependencies.f' file will be created which will point to the dependencies file list in the required order.
