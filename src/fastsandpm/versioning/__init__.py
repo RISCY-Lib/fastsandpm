@@ -33,19 +33,21 @@ Supported Specifier Formats:
     - Comparison: ``">=1.0.0"``, ``"<2.0.0"``
     - Range: ``">=1.0.0,<2.0.0"``
 
-Classes:
-    PreReleaseStage: Enum for pre-release stages (ALPHA, BETA, RELEASE_CANDIDATE).
-    LibraryVersion: Represents and compares semantic versions.
-    VersionSpecifier: Abstract base class for version specifications.
-    DirectVersionSpecifier: Matches a single version exactly.
-    CaretVersionSpecifier: Matches semver-compatible versions (^x.y.z).
-    ComparisonVersionSpecifier: Matches using comparison operators.
-    RangeVersionSpecifier: Matches versions within a range.
+Included Classes:
+    - :py:enim`~library_version.PreReleaseStage`: Enum for pre-release stages.
+    - :py:class`~library_version.LibraryVersion`: Represents and compares semantic versions.
+    - :py:class`~specifier.VersionSpecifier`: Abstract base class for version specifications.
+    - :py:class`~specifier.DirectVersionSpecifier`: Matches a single version exactly.
+    - :py:class`~specifier.CaretVersionSpecifier`: Matches semver-compatible versions (^x.y.z).
+    - :py:class`~specifier.ComparisonVersionSpecifier`: Matches using comparison operators.
+    - :py:class`~specifier.RangeVersionSpecifier`: Matches versions within a range.
 
-Functions:
-    meets_constraints: Check if a version meets specified constraints.
-    find_compatible_version: Find the best matching version from available options.
-    version_specifier_from_str: Parse a version specifier string.
+Included Functions:
+
+    - :py:func:`~specifier.meets_constraints`: Check if a version meets specified constraints.
+    - :py:func:`~specifier.find_compatible_version`: Find the best matching version from
+      a list of options.
+    - :py:func:`~specifier.version_specifier_from_str`: Parse a version specifier string.
 
 Example:
     >>> from fastsandpm.versioning import LibraryVersion, version_specifier_from_str

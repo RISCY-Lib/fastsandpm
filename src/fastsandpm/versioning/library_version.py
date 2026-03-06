@@ -34,8 +34,8 @@ Pre-release Stages (in order):
     - rc (release-candidate): Ready for release
 
 Classes:
-    PreReleaseStage: Enum for pre-release stages.
-    LibraryVersion: Represents and compares semantic versions.
+    - :py:class:`~PreReleaseStage`: Enum for pre-release stages.
+    - :py:class:`~LibraryVersion`: Represents and compares semantic versions.
 
 Example:
     >>> v1 = LibraryVersion("1.2.3")
@@ -103,6 +103,7 @@ class LibraryVersion:
     using standard comparison operators.
 
     The version format is: major.minor.patch[.pre] or major.minor.patch[-pre]
+
     Examples: "1.0.0", "2.3.1", "1.0.0.alpha", "2.0.0-rc1"
 
     Attributes:

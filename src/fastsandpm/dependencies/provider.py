@@ -23,14 +23,14 @@ AbstractProvider interface. It handles candidate discovery, preference ordering,
 and dependency extraction during the resolution process.
 
 Classes:
-    FastSandProvider: The main dependency resolution provider.
+    - :py:class:`~FastSandProvider`: The main dependency resolution provider.
 
 Functions:
-    resolve: Convenience function to resolve dependencies for a manifest.
+    - :py:func:`~resolve`: Convenience function to resolve dependencies for a manifest.
 
 Type Aliases:
-    FastSandReqInfo: Type alias for requirement information tuples.
-    FastSandReporter: Type alias for the resolution reporter.
+    - :py:type:`~FastSandReqInfo`: FastSandReqInfo: Type alias for requirement information tuples.
+    - :py:type:`~FastSandReporter`: Type alias for the resolution reporter.
 """
 
 from __future__ import annotations
@@ -59,6 +59,9 @@ if TYPE_CHECKING:
 
 
 FastSandReqInfo = RequirementInformation[ConcreteRequirement, Candidate]
+""".. py:type:: FastSandReqInfo:
+    Type alias for requirement information tuples.
+"""
 
 
 class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidate, str]):
@@ -279,6 +282,7 @@ class FastSandProvider(resolvelib.AbstractProvider[ConcreteRequirement, Candidat
 
 
 FastSandReporter = resolvelib.BaseReporter[ConcreteRequirement, Candidate, str]
+"""Type alias for the resolution reporter."""
 
 
 def resolve(manifest: Manifest) -> dict[str, Candidate]:

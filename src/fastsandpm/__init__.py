@@ -32,19 +32,26 @@ Quick Start:
     >>> manifest = fastsandpm.get_manifest("./my-project")
     >>> print(manifest.package.name)
     'my-package'
+    >>> resolved = fastsandpm.dependencies.resolve(manifest)
+    >>> print(type(resolved))
+    <class 'dict'>
+    >>> build_library(resolved, pathlib.Path("my-library"))
 
-Classes:
-    Manifest: The main manifest model representing a proj.toml file.
-    Package: Package metadata (name, version, description, authors).
-    ManifestNotFoundError: Raised when a manifest file cannot be found.
-    ManifestParseError: Raised when a manifest file cannot be parsed.
+Included Classes:
+    - :py:class:`~manifest.Manifest`: The main manifest model representing a `proj.toml` file.
+    - :py:class:`~manifest.Package`: Package metadata (name, version, description, authors).
+    - :py:class:`~manifest.ManifestNotFoundError`: Raised when a manifest file cannot be found.
+    - :py:class:`~manifest.ManifestParseError`: Raised when a manifest file cannot be parsed.
 
 Functions:
-    get_manifest: Load and parse a manifest from a repository path.
+    - :py:func:`~manifest.get_manifest`: Load and parse a manifest from a repository path.
+    - :py:func:`~dependencies.resolve`: Resolve all dependencies for a manifest.
+    - :py:func:`~install.build_library`: Build a library from a resovled dependency definition.
+    - :py:func:`~install.library_from_manifest`: Build a library of dependencies from a manifest.
 
 Attributes:
-    __version__: The current version of the FastSandPM package.
-    __author__: The primary author of the package.
+    __version__ (str): The current version of the FastSandPM package.
+    __author__ (str): The primary author of the package.
 
 See Also:
     - fastsandpm.dependencies: Dependency resolution subpackage

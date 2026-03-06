@@ -23,18 +23,18 @@ manifest files (proj.toml). It handles parsing, validation, and representation
 of package metadata, dependencies, and registry configurations.
 
 Classes:
-    ManifestNotFoundError: Exception raised when manifest file is not found.
-    ManifestParseError: Exception raised when manifest parsing fails.
-    Package: Package metadata (name, version, description, authors).
-    Dependencies: Collection of package dependencies.
-    Manifest: The complete manifest model.
+    - :py:exc:`~ManifestNotFoundError`: Exception raised when manifest file is not found.
+    - :py:exc:`~ManifestParseError`: Exception raised when manifest parsing fails.
+    - :py:class:`~Package`: Package metadata (name, version, description, authors).
+    - :py:class:`~Dependencies`: Collection of package dependencies.
+    - :py:class:`~Manifest`: The complete manifest model.
 
 Functions:
-    get_manifest: Load and parse a manifest from a repository path.
-    get_manifest_from_bytes: Parse a manifest from raw bytes content.
+    - :py:func:`~get_manifest`: Load and parse a manifest from a repository path.
+    - :py:func:`~get_manifest_from_bytes`: Parse a manifest from raw bytes content.
 
 Constants:
-    MANIFEST_FILENAME: The default manifest filename ("proj.toml").
+    - :py:const:`~MANIFEST_FILENAME`: The default manifest filename ("proj.toml").
 
 Example:
     >>> from fastsandpm.manifest import get_manifest
@@ -157,7 +157,15 @@ class Dependencies(RootModel[list[ConcreteRequirement]]):
     The model validator automatically converts dictionary-style TOML
     dependencies into the correct dependency type based on the keys present.
 
-    Example:
+    Example TOML:
+        .. code-block:: toml
+
+            [dependencies]
+
+            my-lib = "1.0.0"
+            other_lib = {git = "https://github.com/username/repo.git", tag = "v1.0.0"}
+
+    Example Usage:
         >>> deps = manifest.dependencies
         >>> for dep in deps:
         ...     print(dep.name)

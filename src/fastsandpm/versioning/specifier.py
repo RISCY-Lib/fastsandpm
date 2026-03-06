@@ -29,19 +29,19 @@ Supported Specifier Formats:
     - Range: ``">=1.0.0,<2.0.0"`` (multiple constraints)
 
 Classes:
-    VersionSpecifier: Abstract base class for all specifiers.
-    DirectVersionSpecifier: Matches a single exact version.
-    CaretVersionSpecifier: Matches semver-compatible versions.
-    ComparisonVersionSpecifier: Matches using comparison operators.
-    RangeVersionSpecifier: Matches versions within a range.
+    - :py:class:`~VersionSpecifier`: Abstract base class for all specifiers.
+    - :py:class:`~DirectVersionSpecifier`: Matches a single exact version.
+    - :py:class:`~CaretVersionSpecifier`: Matches semver-compatible versions.
+    - :py:class:`~ComparisonVersionSpecifier`: Matches using comparison operators.
+    - :py:class:`~RangeVersionSpecifier`: Matches versions within a range.
 
 Functions:
-    meets_constraints: Check if a version satisfies all constraints.
-    find_compatible_version: Find the latest compatible version.
-    version_specifier_from_str: Parse a specifier string into an object.
+    - :py:func:`~meets_constraints`: Check if a version satisfies all constraints.
+    - :py:func:`~find_compatible_version`: Find the latest compatible version.
+    - :py:func:`~version_specifier_from_str`: Parse a specifier string into an object.
 
 Type Aliases:
-    ComparisonOperator: Literal type for valid comparison operators.
+    - :py:type:`~ComparisonOperator`: Literal type for valid comparison operators.
 
 Example:
     >>> from fastsandpm.versioning.specifier import version_specifier_from_str
@@ -359,7 +359,7 @@ class ComparisonVersionSpecifier(VersionSpecifier):
         # Check longer operators first to avoid matching '<' when '<=' is intended
         for op in sorted(cls.VALID_OPERATORS, key=len, reverse=True):
             if value.startswith(op):
-                version_str = value[len(op) :].strip()
+                version_str = value[len(op):].strip()
                 return cls(op, LibraryVersion(version_str))  # type: ignore[arg-type]
 
         raise ValueError(f"Invalid comparison version specifier: {value}")
