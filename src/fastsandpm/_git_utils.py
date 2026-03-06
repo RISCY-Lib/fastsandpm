@@ -24,36 +24,35 @@ are used internally by FastSandPM to manage library dependencies from
 git-based sources.
 
 Repository Operations:
-    clone: Clone a repository from a remote URL.
-    checkout: Checkout a specific commit, branch, or tag.
-    fetch: Fetch updates from the remote repository.
+    - clone: Clone a repository from a remote URL.
+    - checkout: Checkout a specific commit, branch, or tag.
+    - fetch: Fetch updates from the remote repository.
 
 Repository State:
-    is_dirty: Check if a repository has uncommitted changes.
-    is_git_repo: Check if a path is a git repository.
-    get_head_commit: Get the HEAD commit hash.
-    get_current_branch: Get the current branch name.
-    get_tags_at_head: Get all tags pointing to HEAD.
-    get_remote_url: Get the URL of a remote.
+    - is_dirty: Check if a repository has uncommitted changes.
+    - is_git_repo: Check if a path is a git repository.
+    - get_head_commit: Get the HEAD commit hash.
+    - get_current_branch: Get the current branch name.
+    - get_tags_at_head: Get all tags pointing to HEAD.
+    - get_remote_url: Get the URL of a remote.
 
 Remote Operations:
-    remote_exists: Check if a remote repository is accessible.
-    get_available_tags: Get all tags from a remote repository.
-    get_remote_refs: Get all refs grouped by commit hash (cached).
-    get_commit_for_ref: Get commit hash for a specific ref.
-    get_remote_file: Fetch a single file from a remote repository.
+    - remote_exists: Check if a remote repository is accessible.
+    - get_available_tags: Get all tags from a remote repository.
+    - get_remote_refs: Get all refs grouped by commit hash (cached).
+    - get_commit_for_ref: Get commit hash for a specific ref.
+    - get_remote_file: Fetch a single file from a remote repository.
 
 URL Parsing:
-    parse_github_url: Parse GitHub URLs to extract owner/repo.
-    parse_gitlab_url: Parse GitLab URLs to extract host/project path.
+    - parse_github_url: Parse GitHub URLs to extract owner/repo.
+    - parse_gitlab_url: Parse GitLab URLs to extract host/project path.
 
 Hosting Provider APIs:
-    fetch_file_from_github: Fetch a file via GitHub raw content URL.
-    fetch_file_from_gitlab: Fetch a file via GitLab repository API.
-    fetch_file_from_hosting_api: Try fetching via supported hosting APIs.
+    - fetch_file_from_github: Fetch a file via GitHub raw content URL.
+    - fetch_file_from_gitlab: Fetch a file via GitLab repository API.
+    - fetch_file_from_hosting_api: Try fetching via supported hosting APIs.
 
-Note:
-    This module requires git to be installed and available in the system PATH.
+.. note:: This module requires git to be installed and available in the system PATH.
 """
 
 from __future__ import annotations

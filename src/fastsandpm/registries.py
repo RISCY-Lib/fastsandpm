@@ -22,14 +22,14 @@ This module provides registry types for resolving package dependencies from
 various sources including git hosts, package indices, and local paths.
 
 Classes:
-    DependencyNotFoundError: Exception raised when a dependency cannot be found.
-    GitRegistry: Registry for resolving dependencies from git hosts.
-    PackageIndexRegistery: Registry for resolving dependencies from package indices.
-    PathRegistry: Registry for resolving dependencies from local filesystem paths.
-    Registries: Collection of registries used during dependency resolution.
+    - :py:exc:`~DependencyNotFoundError`: Exception raised when a dependency cannot be found.
+    - :py:class:`~GitRegistry`: Registry for resolving dependencies from git hosts.
+    - :py:class:`~PackageIndexRegistery`: Registry for resolving dependencies from package indices.
+    - :py:class:`~PathRegistry`: Registry for resolving dependencies from local filesystem paths.
+    - :py:class:`~Registries`: Collection of registries used during dependency resolution.
 
 Type Aliases:
-    ConcreteRegistry: Union type of all concrete registry types.
+    - :py:type:`~ConcreteRegistry`: Union type of all concrete registry types.
 """
 
 from __future__ import annotations
@@ -139,12 +139,12 @@ class Registries(RootModel[list[ConcreteRegistry]]):
         Returns:
             A list of registry dictionaries ready for model instantiation.
 
-        Examples:
-            Input formats supported:
-            - {"name": "foo", "remote": "url"} -> [{"name": "foo", ...}]
-            - {"foo": "url"} -> [{"name": "foo", "remote": "url"}]
-            - {"foo": {"remote": "url"}} -> [{"name": "foo", "remote": "url"}]
-            - {"foo": {"path": "./path"}} -> [{"name": "foo", "path": "./path"}]
+        Example Input formats supported:
+
+            - ``{"name": "foo", "remote": "url"} -> [{"name": "foo", ...}]``
+            - ``{"foo": "url"} -> [{"name": "foo", "remote": "url"}]``
+            - ``{"foo": {"remote": "url"}} -> [{"name": "foo", "remote": "url"}]``
+            - ``{"foo": {"path": "./path"}} -> [{"name": "foo", "path": "./path"}]``
         """
         if isinstance(data, dict):
             # Handle single dependency passed as dict with 'name' key

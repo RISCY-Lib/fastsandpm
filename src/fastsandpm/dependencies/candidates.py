@@ -23,13 +23,13 @@ functions to generate candidates from requirements. Candidates represent
 concrete versions of dependencies that can satisfy requirements.
 
 Classes:
-    Candidate: Abstract base class for all candidate types.
-    PackageIndexCandidate: Candidate from a package index registry.
-    PathCandidate: Candidate from a local filesystem path.
-    GitCandidate: Candidate from a git repository.
+    - :py:class:`Candidate`: Abstract base class for all candidate types.
+    - :py:class:`PackageIndexCandidate`: Candidate from a package index registry.
+    - :py:class:`PathCandidate`: Candidate from a local filesystem path.
+    - :py:class:`GitCandidate`: Candidate from a git repository.
 
 Functions:
-    candidate_factory: Singledispatch function to create candidates from requirements.
+    - :py:func:`candidate_factory`: Singledispatch function to create candidates from requirements.
 """
 
 from __future__ import annotations
@@ -87,6 +87,7 @@ class Candidate(ABC):
         """Check if this candidate satisfies the given requirement.
 
         A candidate satisfies a requirement when:
+
         - The requirement name and candidate name match
         - If the requirement specifies a version, the candidate's version matches
 
@@ -114,8 +115,9 @@ class PackageIndexCandidate(Candidate):
     Artifactory. This implementation is currently a placeholder as package
     index registries are not yet fully implemented.
 
-    Note:
-        Package index registry support is under development.
+    .. warning::
+
+        Package index registry support is under development and is not currently implemented.
     """
 
     def get_manifest(self) -> Manifest | None:
@@ -169,9 +171,9 @@ class PathCandidate(Candidate):
         A path candidate satisfies a requirement when the requirement name
         and candidate name match, and type-specific conditions are met:
 
-        * For PackageIndexRequirement: the candidate's version matches the specifier
-        * For PathRequirement: the candidate path ends with the requirement path
-        * For Git requirements: the path is a git repo and HEAD complies with
+        - For PackageIndexRequirement: the candidate's version matches the specifier
+        - For PathRequirement: the candidate path ends with the requirement path
+        - For Git requirements: the path is a git repo and HEAD complies with
           the requirement's constraints (commit, branch, tag, or version)
 
         Args:
@@ -191,7 +193,7 @@ class PathCandidate(Candidate):
             req_parts = requirement.path.parts
             cand_parts = self.path.parts
             if len(req_parts) <= len(cand_parts):
-                return cand_parts[-len(req_parts) :] == req_parts
+                return cand_parts[-len(req_parts):] == req_parts
             return False
 
         # Handle Git requirements: check if candidate points to a git repo
@@ -327,6 +329,7 @@ class GitCandidate(Candidate):
         """Check if this git candidate satisfies the given requirement.
 
         A git candidate satisfies a requirement when:
+
         - The requirement name and candidate name match
         - If the requirement specifies a version, the candidate's version matches
         - For PackageIndexRequirement: only if no specific index is required
@@ -400,9 +403,15 @@ def candidate_factory(
     Yields:
         Candidate objects that could satisfy the requirement.
 
-    Note:
+    .. note::
+
         The base implementation yields no candidates. Specialized implementations
-        are registered for each concrete requirement type.
+        are registered for each concrete requirement type through the singledispatch.
+
+    .. note::
+
+        Package index registries are not yet implemented, so this currently
+        yields no candidates.
     """
     yield from []
 
@@ -420,8 +429,7 @@ def _package_index_candidate_factory(
     Yields:
         PackageIndexCandidate objects matching the requirement.
 
-    Note:
-        Package index registries are not yet implemented, so this currently
+    .. note:: Package index registries are not yet implemented, so this currently
         yields no candidates.
     """
     yield from []
