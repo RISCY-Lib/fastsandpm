@@ -370,6 +370,7 @@ def get_remote_refs(remote: str) -> dict[str, tuple[frozenset[str], frozenset[st
         ["git", "ls-remote", remote],
         stderr=subprocess.STDOUT,
         stdout=subprocess.PIPE,
+        env={"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "0", **dict(os.environ)},
     )
 
     if proc.returncode != 0:
