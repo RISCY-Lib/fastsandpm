@@ -162,7 +162,7 @@ class Registries(RootModel[list[ConcreteRegistry]]):
                     new_data.append({"name": name, "index": spec})
                 else:
                     # Pass through as-is (will fail validation if invalid)
-                    new_data.append({"name": name, "version": spec})
+                    new_data.append({"name": name, "index": spec})
             return new_data
 
         return data
