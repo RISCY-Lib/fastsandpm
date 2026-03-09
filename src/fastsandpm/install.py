@@ -89,14 +89,7 @@ def library_from_manifest(
     Raises:
         resolvelib.ResolutionImpossible: If no compatible resolution exists.
     """
-    # TODO: Support optional_deps parameter once resolve() is updated to accept it
-    if optional_deps:
-        raise NotImplementedError(
-            "Optional dependencies are not yet supported. "
-            "The resolve() function needs to be updated to accept optional_deps."
-        )
-
-    library = resolve(manifest)
+    library = resolve(manifest, optional_deps)
     build_library(library, dest, clean)
 
 

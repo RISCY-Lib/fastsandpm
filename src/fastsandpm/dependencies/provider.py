@@ -285,7 +285,7 @@ FastSandReporter = resolvelib.BaseReporter[ConcreteRequirement, Candidate, str]
 """Type alias for the resolution reporter."""
 
 
-def resolve(manifest: Manifest) -> dict[str, Candidate]:
+def resolve(manifest: Manifest, optional_deps: list[str] | None = None) -> dict[str, Candidate]:
     """Resolve all dependencies for a manifest.
 
     Creates a FastSandProvider with the manifest's registries and runs the
@@ -294,6 +294,7 @@ def resolve(manifest: Manifest) -> dict[str, Candidate]:
 
     Args:
         manifest: The manifest containing dependencies to resolve.
+        optional_deps: Optional dependency groups to include in the library.
 
     Returns:
         A dictionary mapping package names to their resolved Candidate objects.
@@ -313,5 +314,12 @@ def resolve(manifest: Manifest) -> dict[str, Candidate]:
     reporter: FastSandReporter = resolvelib.BaseReporter()
 
     resolver = resolvelib.Resolver(provider, reporter)
-    result = resolver.resolve(manifest.dependencies)
+
+    dependencies = [dep for dep in manifest.dependencies]
+    if optional_deps:
+        for group in optional_deps:
+            if group in manifest.optional_dependencies:
+                dependencies.extend(manifest.optional_dependencies[group])
+
+    result = resolver.resolve(dependencies)
     return result.mapping
