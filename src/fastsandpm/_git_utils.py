@@ -58,6 +58,7 @@ Hosting Provider APIs:
 from __future__ import annotations
 
 import logging
+import os
 import pathlib
 import re
 import subprocess
@@ -148,7 +149,8 @@ def remote_exists(remote: str) -> bool:
         True if the remote repository exists and is accessible, False otherwise.
     """
     proc = subprocess.run(
-        ["git", "ls-remote", remote], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ["git", "ls-remote", remote], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        env={"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "0", **dict(os.environ)},
     )
     return proc.returncode == 0
 
