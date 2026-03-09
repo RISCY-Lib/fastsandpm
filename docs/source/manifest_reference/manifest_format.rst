@@ -99,7 +99,7 @@ The ``authors`` field accepts several formats:
 
      [package]
      authors = "John Doe"
-     
+
      # Or with email:
      authors = "John Doe <john.doe@example.com>"
 
@@ -119,7 +119,7 @@ The ``authors`` field accepts several formats:
 
      [package]
      authors = {name = "John Doe", email = "john.doe@example.com"}
-     
+
      # Email is optional:
      authors = {name = "John Doe"}
 
@@ -272,5 +272,135 @@ The ``[registries]`` section
 
 Additional registries can be specified in the ``[registries]`` section.
 A registry type exists for each :ref:`dependency specifier <specifying_dependencies>` type.
+
+The ``[registries]`` section manages custom registries used to locate and fetch dependencies.
+FastSandPM supports three types of registries: Git registries, Package Index registries, and Path registries.
+Default registries (GitHub, GitLab, Bitbucket, and a local path registry) are automatically added if not explicitly provided.
+
+
+Git Registries
+^^^^^^^^^^^^^^
+
+Git registries are used to resolve dependencies from git hosts such as GitHub, GitLab, or custom Git servers.
+
+A Git registry consists of the unique registry name and then the url to the remote root.
+The remote is specified as a url in a inline TOML table.
+
+Example TOML with custom Git registry:
+
+.. code-block:: TOML
+
+    [registries]
+    internal-git = {remote = "https://git.company.com"}
+
+Once defined, the registry can be referenced in dependency specifications:
+
+.. code-block:: TOML
+
+    [dependencies]
+    my-lib = {git = "my-org"}  # Uses internal-git registry if https://git.company.com/my-org/my-lib exists
+    other-lib = {git = "my-org/"}
+
+
+Package Index Registries
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+    Package Index registries are not yet fully supported. All methods currently raise ``NotImplementedError`` as this feature is still under development.
+
+Package Index registries are used to resolve dependencies from package indices similar to PyPI or JFrog Artifactory.
+
+A package index registry consists of the unique registry name and then the url index to the index.
+The index is specified as a url in a inline TOML table.
+
+Example TOML with Package Index registry:
+
+.. code-block:: TOML
+
+    [registries]
+
+    artifactory = {index = "https://artifactory.company.com/artifactory/api/pypi/pypi"}
+
+Once defined, the registry can be referenced in dependency specifications:
+
+.. code-block:: TOML
+
+    [dependencies]
+    my-lib = {index = "artifactory", version = "1.0.0"}
+
+
+Path Registries
+^^^^^^^^^^^^^^^
+
+Path registries are used to resolve dependencies from local filesystem paths.
+This is useful for monorepo setups or local development where dependencies are checked out locally.
+
+A path registry consists of the unique registry name and then the path to the local repository.
+The path is specified as a relative path from the current project in a inline TOML table.
+
+Example TOML with Path registry:
+
+.. code-block:: TOML
+
+    [registries]
+    local-deps = {path = "./local_dependencies"}
+
+Once defined, the registry can be used in dependency specifications:
+
+.. code-block:: TOML
+
+    [dependencies]
+    local-util = {path = "./util"}  # Uses local-deps registry
+
+
+Complete Registry Example
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Here is a complete example showing all three registry types in use:
+
+.. code-block:: TOML
+
+    [package]
+    name = "my-project"
+    version = "1.0.0"
+
+    [registries]
+    # Internal Git registry
+    internal-git = {remote = "https://git.company.com"}
+
+    # Monorepo registry
+    local-deps = {path = "./monorepo/libraries"}
+
+    # Package Index registry (for future use)
+    artifactory = {index = "https://artifactory.company.com/api/pypi"}
+
+    [dependencies]
+    # From GitHub (default registry)
+    public-lib = {git = "github-org"}
+
+    # From internal Git server (can match to https://git.company.com/internal-org/internal-lib.git)
+    internal-lib = {git = "internal-org"}
+
+    # From local path (can match to ./monorepo/libraries/util)
+    local-util = {path = "./util"}
+
+Default Registries
+^^^^^^^^^^^^^^^^^^^
+
+FastSandPM automatically adds the following default registries:
+
+- **github**: ``https://github.com``
+- **gitlab**: ``https://gitlab.com``
+- **bitbucket**: ``https://bitbucket.org``
+- **local_path**: ``.`` (current directory)
+
+To use a default registry, simply reference it by name in your dependency specifications.
+For example, to fetch from GitHub:
+
+.. code-block:: TOML
+
+    [dependencies]
+    my-lib = {git = "my-org/my-lib"}  # Resolved via the default GitHub registry
 
 
