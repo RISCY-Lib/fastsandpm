@@ -79,7 +79,7 @@ typing=[
 fspm = "fastsandpm.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/RISC-Lib/fastsandpm"
+Homepage = "https://github.com/RISCY-Lib/fastsandpm"
 Documentation = "https://fastsandpm.readthedocs.io/en/latest/index.html"
 
 # Tool Configurations
