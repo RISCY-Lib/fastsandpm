@@ -173,7 +173,11 @@ git_dep5 = {git = "ORG_NAME", version = "1.0.0"}
         assert dep5.version == DirectVersionSpecifier(LibraryVersion("1.0.0"))
 
     def test_get_manifest_with_path_dependencies(self, tmp_path: pathlib.Path) -> None:
-        """Test loading manifest with path dependencies."""
+        """Test loading manifest with path dependencies.
+
+        Relative paths should be resolved to absolute paths relative to
+        the manifest file's directory.
+        """
         manifest_content = """
 [package]
 name = "with-path-deps"
@@ -192,11 +196,15 @@ parent_dep = {path = "../sibling_project"}
 
         local = manifest.dependencies.get_by_name("local_dep")
         assert isinstance(local, PathRequirement)
-        assert local.path == pathlib.Path("./local_utils")
+        # Relative paths should be resolved to absolute paths
+        assert local.path.is_absolute()
+        assert local.path == (tmp_path / "local_utils").resolve()
 
         parent = manifest.dependencies.get_by_name("parent_dep")
         assert isinstance(parent, PathRequirement)
-        assert parent.path == pathlib.Path("../sibling_project")
+        # Relative paths should be resolved to absolute paths
+        assert parent.path.is_absolute()
+        assert parent.path == (tmp_path / ".." / "sibling_project").resolve()
 
     def test_get_manifest_with_mixed_dependencies(self, tmp_path: pathlib.Path) -> None:
         """Test loading manifest with mixed dependency types."""
@@ -539,3 +547,37 @@ git_dep = {git = "https://github.com/org/repo.git", branch = "main"}
         assert git_dep is not None
         assert isinstance(git_dep, BranchGitRequirement)
         assert git_dep.branch == "main"
+
+    def test_get_manifest_from_bytes_with_path_dependencies(self) -> None:
+        """Test parsing manifest with path dependencies from bytes.
+
+        When loading from bytes without a file context, relative paths
+        should remain as-is (not resolved to absolute paths).
+        """
+        content = b"""
+[package]
+name = "path-deps-pkg"
+version = "1.0.0"
+description = "Package with path dependencies"
+
+[dependencies]
+local_dep = {path = "./local_utils"}
+parent_dep = {path = "../sibling"}
+"""
+        manifest = get_manifest_from_bytes(content)
+
+        assert len(manifest.dependencies) == 2
+
+        local_dep = manifest.dependencies.get_by_name("local_dep")
+        assert local_dep is not None
+        assert isinstance(local_dep, PathRequirement)
+        # Paths should remain relative when loading from bytes
+        assert local_dep.path == pathlib.Path("./local_utils")
+        assert not local_dep.path.is_absolute()
+
+        parent_dep = manifest.dependencies.get_by_name("parent_dep")
+        assert parent_dep is not None
+        assert isinstance(parent_dep, PathRequirement)
+        # Paths should remain relative when loading from bytes
+        assert parent_dep.path == pathlib.Path("../sibling")
+        assert not parent_dep.path.is_absolute()

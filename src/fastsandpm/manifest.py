@@ -57,12 +57,13 @@ from pydantic import (
     PlainValidator,
     RootModel,
     ValidationError,
+    ValidationInfo,
     WithJsonSchema,
     field_validator,
     model_validator,
 )
 
-from fastsandpm.dependencies.requirements import ConcreteRequirement
+from fastsandpm.dependencies.requirements import ConcreteRequirement, PathRequirement
 from fastsandpm.registries import Registries
 from fastsandpm.versioning import LibraryVersion
 
@@ -404,6 +405,48 @@ class Manifest(BaseModel):
         data["optional_dependencies"] = new_opt_deps
         return data
 
+    @model_validator(mode="after")
+    def _resolve_path_requirement_paths(self, info: ValidationInfo) -> Manifest:
+        """Resolve relative paths in PathRequirements to absolute paths.
+
+        Creates a new Manifest with all relative path dependencies resolved
+        relative to the manifest file's directory.
+
+        Args:
+            manifest: The parsed Manifest object.
+            manifest_dir: The directory containing the manifest file.
+
+        Returns:
+            A new Manifest with resolved path dependencies.
+        """
+        if isinstance(info.context, dict) and "manifest_dir" in info.context:
+            manifest_dir = pathlib.Path(info.context["manifest_dir"])
+        else:
+            # No manifest directory context provided (e.g., loading from bytes)
+            # Keep relative paths as-is
+            return self
+
+        def resolve_dep(dep: ConcreteRequirement) -> ConcreteRequirement:
+            """Resolve paths in a single dependency."""
+            if isinstance(dep, PathRequirement) and not dep.path.is_absolute():
+                resolved_path = (manifest_dir / dep.path).resolve()
+                return dep.model_copy(update={"path": resolved_path})
+            return dep
+
+        # Resolve paths in required dependencies
+        new_deps = Dependencies([resolve_dep(dep) for dep in self.dependencies])
+
+        # Resolve paths in optional dependencies
+        new_opt_deps: dict[str, Dependencies] = {}
+        for group_name, deps in self.optional_dependencies.items():
+            new_opt_deps[group_name] = Dependencies([resolve_dep(dep) for dep in deps])
+
+        # Create new manifest with resolved paths
+        self.dependencies = new_deps
+        self.optional_dependencies = new_opt_deps
+
+        return self
+
 
 #: The default manifest filename
 MANIFEST_FILENAME = "proj.toml"
@@ -413,13 +456,14 @@ def get_manifest(path: os.PathLike) -> Manifest:
     """Load and parse a manifest from a repository path.
 
     Looks for a `proj.toml` file in the specified directory, parses it,
-    and returns a Manifest object.
+    and returns a Manifest object. Relative paths in path dependencies are
+    resolved to absolute paths relative to the manifest file's directory.
 
     Args:
         path: Path to the repository directory containing the proj.toml file.
 
     Returns:
-        The parsed Manifest object.
+        The parsed Manifest object with resolved path dependencies.
 
     Raises:
         ManifestNotFoundError: If the proj.toml file does not exist at the path.
@@ -454,9 +498,12 @@ def get_manifest(path: os.PathLike) -> Manifest:
 
     # Parse the data into a Manifest object
     try:
-        return Manifest.model_validate(data)
+        manifest = Manifest.model_validate(data, context={"manifest_dir": path.resolve()})
     except ValidationError as e:
         raise ManifestParseError(path, str(e)) from e
+
+    # Resolve relative paths in path dependencies
+    return manifest
 
 
 def get_manifest_from_bytes(content: bytes, source: str = "<bytes>") -> Manifest:
