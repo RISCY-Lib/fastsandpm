@@ -80,7 +80,10 @@ def clone(remote: str, dest: pathlib.Path) -> None:
     Raises:
         subprocess.CalledProcessError: If the git clone command fails.
     """
-    subprocess.check_output(["git", "clone", remote, dest], stderr=subprocess.STDOUT)
+    subprocess.check_output(
+        ["git", "clone", "--recurse-submodules", remote, dest],
+        stderr=subprocess.STDOUT
+    )
 
 
 def checkout(commitish: str, repo: pathlib.Path) -> None:
@@ -93,7 +96,10 @@ def checkout(commitish: str, repo: pathlib.Path) -> None:
     Raises:
         subprocess.CalledProcessError: If the git checkout command fails.
     """
-    subprocess.check_output(["git", "checkout", commitish], cwd=repo, stderr=subprocess.STDOUT)
+    subprocess.check_output(
+        ["git", "checkout", "--recurse-submodules", commitish],
+        cwd=repo, stderr=subprocess.STDOUT
+    )
 
 
 def fetch(repo: pathlib.Path) -> None:
