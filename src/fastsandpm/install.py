@@ -428,8 +428,6 @@ def _create_library_filelist(definition: ResolveResult, dest: pathlib.Path) -> N
         dest: The destination directory for the library.
     """
 
-    # Use the dependency graph from resolution instead of rebuilding from disk
-    dep_graph = definition.graph
     dep_manifests: dict[str, Manifest] = {}
 
     for name in definition:
@@ -443,8 +441,8 @@ def _create_library_filelist(definition: ResolveResult, dest: pathlib.Path) -> N
         except ManifestParseError as e:
             _logger.warning("Failed to read manifest for %s: %s", name, e)
 
-    # Topological sort to order dependencies
-    ordered_deps = _topological_sort(dep_graph)
+    # Use the topological ordering from the resolve result
+    ordered_deps = definition.topological_order()
 
     # Create library.f file
     library_f_path = dest / "library.f"
@@ -458,37 +456,3 @@ def _create_library_filelist(definition: ResolveResult, dest: pathlib.Path) -> N
                 f.write(f"-F {name}/{name}.f\n")
 
     _logger.debug("Created library.f with %s dependencies", len(ordered_deps))
-
-
-def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
-    """Perform topological sort on dependency graph.
-
-    Args:
-        graph: Dictionary mapping node to set of its dependencies.
-
-    Returns:
-        List of nodes in topologically sorted order (dependencies first).
-    """
-    # Count incoming edges for each node
-    in_degree: dict[str, int] = {node: 0 for node in graph}
-    for node in graph:
-        for dep in graph[node]:
-            in_degree[dep] = in_degree.get(dep, 0) + 1
-
-    # Start with nodes that have no dependencies
-    queue = [node for node in graph if in_degree[node] == 0]
-    result = []
-
-    while queue:
-        # Sort to ensure deterministic ordering
-        queue.sort()
-        node = queue.pop(0)
-        result.append(node)
-
-        # Remove edges from this node
-        for dep in graph.get(node, set()):
-            in_degree[dep] -= 1
-            if in_degree[dep] == 0:
-                queue.append(dep)
-
-    return result

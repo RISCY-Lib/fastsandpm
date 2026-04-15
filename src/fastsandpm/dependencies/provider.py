@@ -326,6 +326,36 @@ class ResolveResult:
         """Check if a package name is in the resolved set."""
         return key in self.mapping
 
+    def topological_order(self) -> list[str]:
+        """Return package names in topological order (dependencies first).
+
+        Packages that have no dependencies on other resolved packages appear
+        first, followed by packages whose dependencies have already appeared.
+        Ties are broken alphabetically for deterministic output.
+
+        Returns:
+            List of package names sorted so that every package appears after
+            all of its dependencies.
+        """
+        in_degree: dict[str, int] = {name: 0 for name in self.graph}
+        for name in self.graph:
+            for dep in self.graph[name]:
+                in_degree[dep] = in_degree.get(dep, 0) + 1
+
+        queue = sorted(name for name in self.graph if in_degree[name] == 0)
+        result: list[str] = []
+
+        while queue:
+            node = queue.pop(0)
+            result.append(node)
+            for dep in self.graph.get(node, set()):
+                in_degree[dep] -= 1
+                if in_degree[dep] == 0:
+                    queue.append(dep)
+                    queue.sort()
+
+        return result
+
 
 def resolve(
     manifest: Manifest, optional_deps: list[str] | None = None
