@@ -337,21 +337,31 @@ class ResolveResult:
             List of package names sorted so that every package appears after
             all of its dependencies.
         """
-        in_degree: dict[str, int] = {name: 0 for name in self.graph}
-        for name in self.graph:
-            for dep in self.graph[name]:
-                in_degree[dep] = in_degree.get(dep, 0) + 1
+        # Count unresolved dependencies for each node
+        remaining_deps: dict[str, int] = {
+            name: len(deps) for name, deps in self.graph.items()
+        }
 
-        queue = sorted(name for name in self.graph if in_degree[name] == 0)
+        # Build reverse lookup: for each dep, which nodes depend on it?
+        dependents: dict[str, set[str]] = {name: set() for name in self.graph}
+        for name, deps in self.graph.items():
+            for dep in deps:
+                if dep in dependents:
+                    dependents[dep].add(name)
+
+        # Start with nodes that have no dependencies
+        queue = sorted(
+            name for name in self.graph if remaining_deps[name] == 0
+        )
         result: list[str] = []
 
         while queue:
             node = queue.pop(0)
             result.append(node)
-            for dep in self.graph.get(node, set()):
-                in_degree[dep] -= 1
-                if in_degree[dep] == 0:
-                    queue.append(dep)
+            for dependent in dependents.get(node, set()):
+                remaining_deps[dependent] -= 1
+                if remaining_deps[dependent] == 0:
+                    queue.append(dependent)
                     queue.sort()
 
         return result
