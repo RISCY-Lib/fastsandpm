@@ -293,18 +293,18 @@ class ResolveResult:
     The mapping contains all resolved packages keyed by name. The graph preserves
     the dependency relationships computed by the resolver, avoiding the need to
     re-read manifests from disk to reconstruct them.
-
-    Attributes:
-        mapping: Dictionary mapping package names to their resolved Candidate objects.
-        graph: Dictionary mapping each package name to the set of package names it
-            depends on. Only includes dependencies that are themselves in the resolved set.
-        direct_dependencies: The set of package names that were direct (user-specified)
-            dependencies, as opposed to transitive dependencies.
     """
 
     mapping: dict[str, Candidate]
+    """Dictionary mapping package names to their resolved Candidate objects."""
     graph: dict[str, set[str]]
+    """Dictionary mapping each package name to the set of package names it depends on.
+    Only includes dependencies that are themselves in the resolved set.
+    """
     direct_dependencies: frozenset[str]
+    """The set of package names that were direct (user-specified) dependencies,
+    as opposed to transitive dependencies.
+    """
 
     def items(self) -> ItemsView[str, Candidate]:
         """Return items view of the mapping, for dict-like iteration."""
