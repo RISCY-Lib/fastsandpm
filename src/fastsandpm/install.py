@@ -56,7 +56,7 @@ import shutil
 from subprocess import CalledProcessError
 
 from fastsandpm import _git_utils
-from fastsandpm.dependencies import Candidate, resolve
+from fastsandpm.dependencies import ResolveResult, resolve
 from fastsandpm.dependencies.candidates import GitCandidate, PackageIndexCandidate, PathCandidate
 from fastsandpm.manifest import (
     Manifest,
@@ -93,7 +93,7 @@ def library_from_manifest(
     build_library(library, dest, clean)
 
 
-def build_library(definition: dict[str, Candidate], dest: pathlib.Path, clean: bool = True) -> bool:
+def build_library(definition: ResolveResult, dest: pathlib.Path, clean: bool = True) -> bool:
     """Build a library candidate from a manifest definition.
 
     The library will be placed in the destination directory with each dependency having it's own
@@ -134,8 +134,8 @@ def build_library(definition: dict[str, Candidate], dest: pathlib.Path, clean: b
     a manifest.
 
     Args:
-        definition: The definition of the library to build. Where the key is the name of the
-            dependency and the value is the candidate for that dependency.
+        definition: The resolved dependency definition containing packages and their
+            dependency graph.
         dest: The destination directory for the library.
         clean: If True, clean the destination directory before building the library.
 
@@ -420,39 +420,29 @@ def _install_path_candidate(candidate: PathCandidate, dep_dir: pathlib.Path, cle
             return False
 
 
-def _create_library_filelist(definition: dict[str, Candidate], dest: pathlib.Path) -> None:
+def _create_library_filelist(definition: ResolveResult, dest: pathlib.Path) -> None:
     """Create the library.f filelist with proper dependency ordering.
 
     Args:
-        definition: The library definition with candidates.
+        definition: The resolved dependency definition containing the dependency graph.
         dest: The destination directory for the library.
-        _logger: Logger for warnings and errors.
     """
 
-    # Build dependency graph to determine ordering
-    dep_graph: dict[str, set[str]] = {}
     dep_manifests: dict[str, Manifest] = {}
 
-    for name, _ in definition.items():
-        dep_graph[name] = set()
+    for name in definition:
         dep_dir = dest / name
 
-        # Check if candidate has a manifest
+        # Read manifests to get flist paths
         try:
             dep_manifests[name] = get_manifest(dep_dir)
-
-            # Add dependencies from manifest to graph
-            for dep in dep_manifests[name].dependencies:
-                if dep.name in definition:
-                    dep_graph[name].add(dep.name)
-
-        except ManifestNotFoundError as _:
+        except ManifestNotFoundError:
             _logger.debug("No manifest found for %s", name)
         except ManifestParseError as e:
             _logger.warning("Failed to read manifest for %s: %s", name, e)
 
-    # Topological sort to order dependencies
-    ordered_deps = _topological_sort(dep_graph)
+    # Use the topological ordering from the resolve result
+    ordered_deps = definition.topological_order()
 
     # Create library.f file
     library_f_path = dest / "library.f"
@@ -466,37 +456,3 @@ def _create_library_filelist(definition: dict[str, Candidate], dest: pathlib.Pat
                 f.write(f"-F {name}/{name}.f\n")
 
     _logger.debug("Created library.f with %s dependencies", len(ordered_deps))
-
-
-def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
-    """Perform topological sort on dependency graph.
-
-    Args:
-        graph: Dictionary mapping node to set of its dependencies.
-
-    Returns:
-        List of nodes in topologically sorted order (dependencies first).
-    """
-    # Count incoming edges for each node
-    in_degree: dict[str, int] = {node: 0 for node in graph}
-    for node in graph:
-        for dep in graph[node]:
-            in_degree[dep] = in_degree.get(dep, 0) + 1
-
-    # Start with nodes that have no dependencies
-    queue = [node for node in graph if in_degree[node] == 0]
-    result = []
-
-    while queue:
-        # Sort to ensure deterministic ordering
-        queue.sort()
-        node = queue.pop(0)
-        result.append(node)
-
-        # Remove edges from this node
-        for dep in graph.get(node, set()):
-            in_degree[dep] -= 1
-            if in_degree[dep] == 0:
-                queue.append(dep)
-
-    return result

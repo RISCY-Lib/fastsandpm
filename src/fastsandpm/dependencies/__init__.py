@@ -36,6 +36,10 @@ Included Classes:
     - :py:class:`~candidates.PathCandidate`: Candidate from a local filesystem path.
     - :py:class:`~candidates.GitCandidate`: Candidate from a git repository.
 
+Included Classes (continued):
+    - :py:class:`~provider.ResolveResult`: Result of dependency resolution containing the resolved
+      packages and their dependency graph.
+
 Included Functions:
     - :py:func:`~candidates.candidate_factory`: Singledispatch function to create candidates
       from requirements.
@@ -52,7 +56,7 @@ from .candidates import (
     PathCandidate,
     candidate_factory,
 )
-from .provider import resolve
+from .provider import ResolveResult, resolve
 from .requirements import (
     BranchGitRequirement,
     CommitGitRequirement,
@@ -78,5 +82,6 @@ __all__ = [
     "PathCandidate",
     "GitCandidate",
     "candidate_factory",
+    "ResolveResult",
     "resolve",
 ]
