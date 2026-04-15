@@ -35,7 +35,8 @@ Type Aliases:
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import ItemsView, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import resolvelib
@@ -285,7 +286,50 @@ FastSandReporter = resolvelib.BaseReporter[ConcreteRequirement, Candidate, str]
 """Type alias for the resolution reporter."""
 
 
-def resolve(manifest: Manifest, optional_deps: list[str] | None = None) -> dict[str, Candidate]:
+@dataclass(frozen=True)
+class ResolveResult:
+    """Result of dependency resolution, containing resolved packages and their dependency graph.
+
+    The mapping contains all resolved packages keyed by name. The graph preserves
+    the dependency relationships computed by the resolver, avoiding the need to
+    re-read manifests from disk to reconstruct them.
+
+    Attributes:
+        mapping: Dictionary mapping package names to their resolved Candidate objects.
+        graph: Dictionary mapping each package name to the set of package names it
+            depends on. Only includes dependencies that are themselves in the resolved set.
+        direct_dependencies: The set of package names that were direct (user-specified)
+            dependencies, as opposed to transitive dependencies.
+    """
+
+    mapping: dict[str, Candidate]
+    graph: dict[str, set[str]]
+    direct_dependencies: frozenset[str]
+
+    def items(self) -> ItemsView[str, Candidate]:
+        """Return items view of the mapping, for dict-like iteration."""
+        return self.mapping.items()
+
+    def __getitem__(self, key: str) -> Candidate:
+        """Get a candidate by package name."""
+        return self.mapping[key]
+
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over package names."""
+        return iter(self.mapping)
+
+    def __len__(self) -> int:
+        """Return the number of resolved packages."""
+        return len(self.mapping)
+
+    def __contains__(self, key: object) -> bool:
+        """Check if a package name is in the resolved set."""
+        return key in self.mapping
+
+
+def resolve(
+    manifest: Manifest, optional_deps: list[str] | None = None
+) -> ResolveResult:
     """Resolve all dependencies for a manifest.
 
     Creates a FastSandProvider with the manifest's registries and runs the
@@ -297,7 +341,8 @@ def resolve(manifest: Manifest, optional_deps: list[str] | None = None) -> dict[
         optional_deps: Optional dependency groups to include in the library.
 
     Returns:
-        A dictionary mapping package names to their resolved Candidate objects.
+        A ResolveResult containing the resolved packages, their dependency graph,
+        and the set of direct dependencies.
 
     Raises:
         resolvelib.ResolutionImpossible: If no compatible resolution exists.
@@ -322,4 +367,23 @@ def resolve(manifest: Manifest, optional_deps: list[str] | None = None) -> dict[
                 dependencies.extend(manifest.optional_dependencies[group])
 
     result = resolver.resolve(dependencies)
-    return result.mapping
+
+    # Convert resolvelib's DirectedGraph to a plain dict,
+    # excluding the None root vertex.
+    dep_graph: dict[str, set[str]] = {}
+    for name in result.mapping:
+        dep_graph[name] = {
+            child for child in result.graph.iter_children(name)
+            if child is not None
+        }
+
+    direct_deps = frozenset(
+        child for child in result.graph.iter_children(None)
+        if child is not None
+    )
+
+    return ResolveResult(
+        mapping=result.mapping,
+        graph=dep_graph,
+        direct_dependencies=direct_deps,
+    )

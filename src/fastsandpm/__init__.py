@@ -34,7 +34,7 @@ Quick Start:
     'my-package'
     >>> resolved = fastsandpm.dependencies.resolve(manifest)
     >>> print(type(resolved))
-    <class 'dict'>
+    <class 'fastsandpm.dependencies.provider.ResolveResult'>
     >>> build_library(resolved, pathlib.Path("my-library"))
 
 Included Classes:
@@ -42,6 +42,7 @@ Included Classes:
     - :py:class:`~manifest.Package`: Package metadata (name, version, description, authors).
     - :py:class:`~manifest.ManifestNotFoundError`: Raised when a manifest file cannot be found.
     - :py:class:`~manifest.ManifestParseError`: Raised when a manifest file cannot be parsed.
+    - :py:class:`~dependencies.ResolveResult`: Result of dependency resolution with graph.
 
 Functions:
     - :py:func:`~manifest.get_manifest`: Load and parse a manifest from a repository path.
@@ -63,6 +64,7 @@ from __future__ import annotations
 
 from fastsandpm import _info
 from fastsandpm.dependencies import (
+    ResolveResult,
     resolve,
 )
 from fastsandpm.install import build_library, library_from_manifest
@@ -85,6 +87,7 @@ __all__ = [
     "ManifestNotFoundError",
     "ManifestParseError",
     "Package",
+    "ResolveResult",
     "resolve",
     "library_from_manifest",
     "build_library",

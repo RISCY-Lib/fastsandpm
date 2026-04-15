@@ -56,7 +56,7 @@ import shutil
 from subprocess import CalledProcessError
 
 from fastsandpm import _git_utils
-from fastsandpm.dependencies import Candidate, resolve
+from fastsandpm.dependencies import ResolveResult, resolve
 from fastsandpm.dependencies.candidates import GitCandidate, PackageIndexCandidate, PathCandidate
 from fastsandpm.manifest import (
     Manifest,
@@ -93,7 +93,7 @@ def library_from_manifest(
     build_library(library, dest, clean)
 
 
-def build_library(definition: dict[str, Candidate], dest: pathlib.Path, clean: bool = True) -> bool:
+def build_library(definition: ResolveResult, dest: pathlib.Path, clean: bool = True) -> bool:
     """Build a library candidate from a manifest definition.
 
     The library will be placed in the destination directory with each dependency having it's own
@@ -134,8 +134,8 @@ def build_library(definition: dict[str, Candidate], dest: pathlib.Path, clean: b
     a manifest.
 
     Args:
-        definition: The definition of the library to build. Where the key is the name of the
-            dependency and the value is the candidate for that dependency.
+        definition: The resolved dependency definition containing packages and their
+            dependency graph.
         dest: The destination directory for the library.
         clean: If True, clean the destination directory before building the library.
 
@@ -420,33 +420,25 @@ def _install_path_candidate(candidate: PathCandidate, dep_dir: pathlib.Path, cle
             return False
 
 
-def _create_library_filelist(definition: dict[str, Candidate], dest: pathlib.Path) -> None:
+def _create_library_filelist(definition: ResolveResult, dest: pathlib.Path) -> None:
     """Create the library.f filelist with proper dependency ordering.
 
     Args:
-        definition: The library definition with candidates.
+        definition: The resolved dependency definition containing the dependency graph.
         dest: The destination directory for the library.
-        _logger: Logger for warnings and errors.
     """
 
-    # Build dependency graph to determine ordering
-    dep_graph: dict[str, set[str]] = {}
+    # Use the dependency graph from resolution instead of rebuilding from disk
+    dep_graph = definition.graph
     dep_manifests: dict[str, Manifest] = {}
 
-    for name, _ in definition.items():
-        dep_graph[name] = set()
+    for name in definition:
         dep_dir = dest / name
 
-        # Check if candidate has a manifest
+        # Read manifests to get flist paths
         try:
             dep_manifests[name] = get_manifest(dep_dir)
-
-            # Add dependencies from manifest to graph
-            for dep in dep_manifests[name].dependencies:
-                if dep.name in definition:
-                    dep_graph[name].add(dep.name)
-
-        except ManifestNotFoundError as _:
+        except ManifestNotFoundError:
             _logger.debug("No manifest found for %s", name)
         except ManifestParseError as e:
             _logger.warning("Failed to read manifest for %s: %s", name, e)
